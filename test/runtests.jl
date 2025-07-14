@@ -1,8 +1,11 @@
+
 cd(@__DIR__)
 
 # Add worker processes to the Julia distributed computing environment:
 
 using Distributed
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
 addprocs(7)
 println("Number of Proccess : $(nprocs())")
@@ -10,7 +13,7 @@ println("Number of Workers  : $(nworkers())")
 
 ### Import Libraries
 
-using COBREXA, JuMP, Test, Distributed, JuMP, HiGHS, Clarabel, JSON, SparseArrays, LinearAlgebra, SharedArrays
+using COBREXA, JuMP, Test, Distributed, JuMP, HiGHS, Clarabel, JSON, SparseArrays, LinearAlgebra, SharedArrays, JLD2, HDF5
 
 # Include the necessary Julia files:
 include("TestData.jl")
@@ -25,13 +28,15 @@ import AbstractFBCModels.CanonicalModel: Model
 import AbstractFBCModels.CanonicalModel: Reaction, Metabolite, Gene, Coupling
 import JSONFBCModels: JSONFBCModel
 
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
+
 ### sparseQFCA:
 
 # Print a message indicating that sparseQFCA is being run on e_coli_core:
-printstyled("sparseQFCA :\n"; color=:yellow)
+printstyled("sparseQFCA :\n"; color=:magenta)
 printstyled("iIS312 :\n"; color=:yellow)
 
-# Extracte relevant data from input model:
+## Extracte relevant data from input model
 
 S_iIS312, Metabolites_iIS312, Reactions_iIS312, Genes_iIS312, m_iIS312, n_iIS312, n_genes_iIS312, lb_iIS312, ub_iIS312, c_vector = sparseQFCA.dataOfModel(myModel_iIS312)
 # Ensure that the bounds of all reactions are homogenous:
@@ -81,7 +86,7 @@ printstyled("#------------------------------------------------------------------
 printstyled("CC_SwiftCC :\n"; color=:yellow)
 printstyled("e_coli_core :\n"; color=:yellow)
 
-# Get the necessary data from myModel_e_coli_core:
+## Get the necessary data from myModel_e_coli_core
 
 S_e_coli_core, Metabolites_e_coli_core, Reactions_e_coli_core, Genes_e_coli_core, m_e_coli_core, n_e_coli_core, n_genes_e_coli_core, lb_e_coli_core, ub_e_coli_core, c_vector = sparseQFCA.dataOfModel(myModel_e_coli_core)
 # Check for duplicate reactions in Reactions_e_coli_core:
@@ -200,14 +205,18 @@ fctable_distributedQFCA_iIS312 = convert(Matrix{Int}, fctable_distributedQFCA_iI
 # Test that the results of distributedQFCA are correct for the iIS312 model:
 @test distributedQFCATest_iIS312(fctable_distributedQFCA_iIS312)
 # Print a separator:
-printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
-## ToyModel
+### ToyModels
+
+printstyled("ToyModels:\n"; color=:magenta)
+
+## ToyModel1
 
 ToyModel = Model()
-ModelName = "ToyModel"
+modelName = "ToyModel1"
 
-printstyled("$ModelName :\n"; color=:yellow)
+printstyled("$modelName :\n"; color=:yellow)
 
 # Genes:
 for i = 1:9
@@ -317,11 +326,10 @@ ToyModel.reactions["EX_2"] = Reaction(
     objective_coefficient = 1.0,
 )
 
-ModelName = "ToyModel"  # Define the model name as a string
 ToyModel_json = convert(JSONFBCModel, ToyModel)
-save_model(ToyModel_json, "../test/Models/$ModelName.json")  # Use the string in the file path
+save_model(ToyModel_json, "../test/Models/$modelName.json")  # Use the string in the file path
 # Read the JSON file
-data = JSON.parsefile("Models/$ModelName.json")
+data = JSON.parsefile("Models/$modelName.json")
 
 # Process reactions to replace '&&' with 'and' and '||' with 'or' in gene_reaction_rule
 if haskey(data, "reactions")
@@ -333,158 +341,46 @@ if haskey(data, "reactions")
 end
 
 # Write the corrected JSON file
-open("Models/$ModelName.json", "w") do file
+open("Models/$modelName.json", "w") do file
     JSON.print(file, data, 1)  # Use 'indent=1' for indentation
 end
 
 S_ToyModel, Metabolites_ToyModel, Reactions_ToyModel, Genes_ToyModel, m_ToyModel, n_ToyModel, n_genes_ToyModel, lb_ToyModel, ub_ToyModel, c_vector_ToyModel = sparseQFCA.dataOfModel(ToyModel)
 
-printstyled("FBA - $ModelName:\n"; color=:blue)
+## FBA
 
-# Define the model
-FBA_model, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-n = length(Reactions_ToyModel)
-@variable(FBA_model, lb_ToyModel[i] <= x[i = 1:n_ToyModel] <= ub_ToyModel[i])
-# Set the objective function
-@objective(FBA_model, Max, (c_vector_ToyModel)'* x)
-@constraint(FBA_model, (S_ToyModel) * x .== 0)
-# Solve the model
-optimize!(FBA_model)
-V_initial = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_initial, value(x[i]))
-end
-println(V_initial)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(ToyModel, modelName)
 
-index_c_Toymodel = findfirst(x -> x == 1.0, c_vector_ToyModel)
-println("termination_status = $(termination_status(FBA_model))")
-println("objective_value = $(objective_value(FBA_model))")
-println("Biomass = $(Reactions_ToyModel[index_c_Toymodel]), Flux = $(V_initial[index_c_Toymodel])")
+## Corrected FBA
 
-# Separate reactions into reversible and irreversible sets:
-# Create an array of reaction IDs:
-Reaction_Ids_ToyModel = collect(1:n_ToyModel)
-irreversible_reactions_id_ToyModel, reversible_reactions_id_ToyModel = sparseQFCA.reversibility(lb_ToyModel, Reaction_Ids_ToyModel)
-# Create a new instance of the input model with homogenous bounds:
-ModelObject_CC_ToyModel = sparseQFCA.Model_CC(S_ToyModel, Metabolites_ToyModel, Reactions_ToyModel, Genes_ToyModel, m_ToyModel, n_ToyModel, lb_ToyModel, ub_ToyModel)
-blocked_index_ToyModel, dualVar_ToyModel = sparseQFCA.swiftCC(ModelObject_CC_ToyModel)
-blocked_index_rev_ToyModel = blocked_index_ToyModel ∩ reversible_reactions_id_ToyModel
-# Convert to Vector{Int64}:
-blocked_index_rev_ToyModel = convert(Vector{Int64}, blocked_index_rev_ToyModel)
-# Correct Reversibility:
-ModelObject_Crrection_ToyModel = sparseQFCA.Model_Correction(S_ToyModel, Metabolites_ToyModel, Reactions_ToyModel, Genes_ToyModel, m_ToyModel, n_ToyModel, lb_ToyModel, ub_ToyModel, irreversible_reactions_id_ToyModel, reversible_reactions_id_ToyModel)
-# Apply distributedReversibility_Correction() to the model and update Reversibility, S and bounds:
-SolverName = "HiGHS"
-S_ToyModel, lb_ToyModel, ub_ToyModel, irreversible_reactions_id_ToyModel, reversible_reactions_id_ToyModel = sparseQFCA.distributedReversibility_Correction(ModelObject_Crrection_ToyModel, blocked_index_rev_ToyModel, SolverName, false)
-
-printstyled("CorrectedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_correction, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-@variable(FBA_model_correction, lb_ToyModel[i] <= x[i = 1:n_ToyModel] <= ub_ToyModel[i])
-# Set the objective function
-println("Objective Function = C'x = $((c_vector_ToyModel)'* x)")
-@objective(FBA_model_correction, Max, (c_vector_ToyModel)'* x)
-@constraint(FBA_model_correction, (S_ToyModel) * x .== 0)
-# Solve the model
-optimize!(FBA_model_correction)
-V_correction = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_correction, value(x[i]))
-end
-
-println("V_correction:")
-println(V_correction)
-
-println("termination_status = $(termination_status(FBA_model_correction))")
-println("objective_value = $(objective_value(FBA_model_correction))")
-println("Biomass = $(Reactions_ToyModel[index_c_Toymodel]), Flux = $(V_correction[index_c_Toymodel])")
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(ToyModel, modelName)
 
 ## QuantomeRedNet
 
-ModelName = "ToyModel"
-myModel_ToyModel = load_model(JSONFBCModel, "Models/$ModelName.json", A.CanonicalModel.Model)
+ModelName = "ToyModel1"
+myModel_ToyModel = load_model(JSONFBCModel, "Models/$modelName.json", A.CanonicalModel.Model)
 
-representatives = []
-representatives = convert(Vector{Int64}, representatives)
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
 
-printstyled("QuantomeRedNet - $ModelName :\n"; color=:yellow)
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_ToyModel, ModelName, "HiGHS", false, false)
 
-reducedModelName, A_matrix, reduction_map = sparseQFCA.quantomeReducer(myModel_ToyModel, ModelName, "HiGHS", false, false, representatives)
+ToyModel_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
 
-ToyModel_reduced = load_model(JSONFBCModel, "../src/QuantomeRedNet/ReducedNetworks/$reducedModelName.json", A.CanonicalModel.Model)
+S_ToyModelcompressed, Metabolites_ToyModelcompressed, Reactions_ToyModelcompressed, Genes_ToyModelcompressed, m_ToyModelcompressed, n_ToyModelcompressed, n_genes_ToyModelcompressed, lb_ToyModelcompressed, ub_ToyModelcompressed, c_vector_ToyModelcompressed = sparseQFCA.dataOfModel(ToyModel_compressed, 0)
 
-S_ToyModelreduced, Metabolites_ToyModelreduced, Reactions_ToyModelreduced, Genes_ToyModelreduced, m_ToyModelreduced, n_ToyModelreduced, n_genes_ToyModelreduced, lb_ToyModelreduced, ub_ToyModelreduced, c_vector_ToyModelreduced = sparseQFCA.dataOfModel(ToyModel_reduced, 0)
-
-Reaction_Ids_ToyModelreduced = collect(1:n_ToyModelreduced)
-irreversible_reactions_id_ToyModelreduced, reversible_reactions_id_ToyModelreduced = sparseQFCA.reversibility(lb_ToyModelreduced, Reaction_Ids_ToyModelreduced, 0)
-
-S_ToyModelreduced = dropzeros!(S_ToyModelreduced)
-
-# Find the index of the first occurrence where the element in c_vector is equal to 1.0 in Reduced Network:
-index_c_ToyModelreduced = findfirst(x -> x == 1.0, c_vector_ToyModelreduced)
-
-c_vector_ToyModelreduced = A_matrix' * c_vector_ToyModel
-
-S_ToyModelreduced, Metabolites_ToyModelreduced, Metabolites_elimination = sparseQFCA.remove_zeroRows(S_ToyModelreduced, Metabolites_ToyModelreduced)
-
-printstyled("CompressedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_reduced, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")  # HiGHS supports LP/MILP
-
-# Add decision variables
-@variable(FBA_model_reduced, x[1:n_ToyModelreduced])
-@variable(FBA_model_reduced, t >= 0)  # Auxiliary variable for norm constraint
-
-t = 1e-3
-
-@constraint(FBA_model_reduced, lb_ToyModel .<= A_matrix * x .<= ub_ToyModel)
-
-# Replace Norm-2 with Norm-Infinity constraints
-@constraint(FBA_model_reduced, S_ToyModelreduced * x .<= t)
-@constraint(FBA_model_reduced, S_ToyModelreduced * x .>= -t)
-
-# Set objective
-@objective(FBA_model_reduced, Max, dot(c_vector_ToyModelreduced, x))
-
-# Solve the model
-optimize!(FBA_model_reduced)
-
-# Extract results
-V_reduced = []
-for i in 1:length(x)
-    append!(V_reduced, value(x[i]))
-end
-
-println("V_reduced: FBA(Compressed)")
-println(V_reduced)
-
-println("termination_status = $(termination_status(FBA_model_reduced))")
-println("objective_value = $(objective_value(FBA_model_reduced))")
-
-V = A_matrix * V_reduced
-
-println("V = A * V_reduced")
-println(V)
-
-println("Biomass = $(Reactions_ToyModel[index_c_Toymodel]), Flux = $(V[index_c_Toymodel])")
-
-Original_ObjectiveValue = objective_value(FBA_model)
-Corrected_ObjectiveValue = objective_value(FBA_model_correction)
-Compressed_ObjectiveValue = objective_value(FBA_model_reduced)
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(ToyModel, ToyModel_compressed, A_matrix, modelName)
 
 @test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
 
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 ## ToyModel2
 
-printstyled("ToyModel2 :\n"; color=:yellow)
+printstyled("ToyModel2:\n"; color=:yellow)
 
 ToyModel2 = Model()
+modelName = "ToyModel2"
 
 # Genes:
 ToyModel2.genes["G1"] = Gene()
@@ -518,12 +414,10 @@ ToyModel2.reactions["rxn2"] = Reaction(
     objective_coefficient = 1.0,
 )
 
-
-ModelName = "ToyModel2"  # Define the model name as a string
 ToyModel2_json = convert(JSONFBCModel, ToyModel2)
-save_model(ToyModel2_json, "../test/Models/$ModelName.json")  # Use the string in the file path
+save_model(ToyModel2_json, "../test/Models/$modelName.json")  # Use the string in the file path
 # Read the JSON file
-data = JSON.parsefile("Models/$ModelName.json")
+data = JSON.parsefile("Models/$modelName.json")
 
 # Process reactions to replace '&&' with 'and' and '||' with 'or' in gene_reaction_rule
 if haskey(data, "reactions")
@@ -535,159 +429,47 @@ if haskey(data, "reactions")
 end
 
 # Write the corrected JSON file
-open("Models/$ModelName.json", "w") do file
+open("Models/$modelName.json", "w") do file
     JSON.print(file, data, 1)  # Use 'indent=1' for indentation
 end
 
 S_ToyModel2, Metabolites_ToyModel2, Reactions_ToyModel2, Genes_ToyModel2, m_ToyModel2, n_ToyModel2, n_genes_ToyModel2, lb_ToyModel2, ub_ToyModel2, c_vector_ToyModel2 = sparseQFCA.dataOfModel(ToyModel2)
 
-printstyled("FBA - $ModelName:\n"; color=:blue)
+## FBA
 
-# Define the model
-FBA_model, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-n = length(Reactions_ToyModel2)
-@variable(FBA_model, lb_ToyModel2[i] <= x[i = 1:n_ToyModel2] <= ub_ToyModel2[i])
-# Set the objective function
-@objective(FBA_model, Max, (c_vector_ToyModel2)'* x)
-@constraint(FBA_model, (S_ToyModel2) * x .== 0)
-# Solve the model
-optimize!(FBA_model)
-V_initial = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_initial, value(x[i]))
-end
-println(V_initial)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(ToyModel2, modelName)
 
-index_c_ToyModel2 = findfirst(x -> x == 1.0, c_vector_ToyModel2)
-println("termination_status = $(termination_status(FBA_model))")
-println("objective_value = $(objective_value(FBA_model))")
-println("Biomass = $(Reactions_ToyModel2[index_c_ToyModel2]), Flux = $(V_initial[index_c_ToyModel2])")
+## Corrected FBA
 
-# Separate reactions into reversible and irreversible sets:
-# Create an array of reaction IDs:
-Reaction_Ids_ToyModel2 = collect(1:n_ToyModel2)
-irreversible_reactions_id_ToyModel2, reversible_reactions_id_ToyModel2 = sparseQFCA.reversibility(lb_ToyModel2, Reaction_Ids_ToyModel2)
-# Create a new instance of the input model with homogenous bounds:
-ModelObject_CC_ToyModel2 = sparseQFCA.Model_CC(S_ToyModel2, Metabolites_ToyModel2, Reactions_ToyModel2, Genes_ToyModel2, m_ToyModel2, n_ToyModel2, lb_ToyModel2, ub_ToyModel2)
-blocked_index_ToyModel2, dualVar_ToyModel2 = sparseQFCA.swiftCC(ModelObject_CC_ToyModel2)
-blocked_index_rev_ToyModel2 = blocked_index_ToyModel2 ∩ reversible_reactions_id_ToyModel2
-# Convert to Vector{Int64}:
-blocked_index_rev_ToyModel2 = convert(Vector{Int64}, blocked_index_rev_ToyModel2)
-# Correct Reversibility:
-ModelObject_Crrection_ToyModel2 = sparseQFCA.Model_Correction(S_ToyModel2, Metabolites_ToyModel2, Reactions_ToyModel2, Genes_ToyModel2, m_ToyModel2, n_ToyModel2, lb_ToyModel2, ub_ToyModel2, irreversible_reactions_id_ToyModel2, reversible_reactions_id_ToyModel2)
-# Apply distributedReversibility_Correction() to the model and update Reversibility, S and bounds:
-SolverName = "HiGHS"
-S_ToyModel2, lb_ToyModel2, ub_ToyModel2, irreversible_reactions_id_ToyModel2, reversible_reactions_id_ToyModel2 = sparseQFCA.distributedReversibility_Correction(ModelObject_Crrection_ToyModel2, blocked_index_rev_ToyModel2, SolverName, false)
-
-printstyled("CorrectedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_correction, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-@variable(FBA_model_correction, lb_ToyModel2[i] <= x[i = 1:n_ToyModel2] <= ub_ToyModel2[i])
-# Set the objective function
-println("Objective Function = C'x = $((c_vector_ToyModel2)'* x)")
-@objective(FBA_model_correction, Max, (c_vector_ToyModel2)'* x)
-@constraint(FBA_model_correction, (S_ToyModel2) * x .== 0)
-# Solve the model
-optimize!(FBA_model_correction)
-V_correction = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_correction, value(x[i]))
-end
-
-println("V_correction:")
-println(V_correction)
-
-println("termination_status = $(termination_status(FBA_model_correction))")
-println("objective_value = $(objective_value(FBA_model_correction))")
-println("Biomass = $(Reactions_ToyModel2[index_c_ToyModel2]), Flux = $(V_correction[index_c_ToyModel2])")
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(ToyModel2, modelName)
 
 ## QuantomeRedNet
 
+myModel_ToyModel2 = load_model(JSONFBCModel, "Models/$modelName.json", A.CanonicalModel.Model)
+
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
+
 ModelName = "ToyModel2"
-myModel_ToyModel2 = load_model(JSONFBCModel, "Models/$ModelName.json", A.CanonicalModel.Model)
 
-representatives = []
-representatives = convert(Vector{Int64}, representatives)
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_ToyModel2, ModelName, "HiGHS", false, false)
 
-printstyled("QuantomeRedNet - $ModelName :\n"; color=:yellow)
+ToyModel2_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
 
-reducedModelName, A_matrix, reduction_map = sparseQFCA.quantomeReducer(myModel_ToyModel2, ModelName, "HiGHS", false, false, representatives)
+S_ToyModel2compressed, Metabolites_ToyModel2compressed, Reactions_ToyModel2compressed, Genes_ToyModel2compressed, m_ToyModel2compressed, n_ToyModel2compressed, n_genes_ToyModel2compressed, lb_ToyModel2compressed, ub_ToyModel2compressed, c_vector_ToyModel2compressed = sparseQFCA.dataOfModel(ToyModel2_compressed, 0)
 
-ToyModel2_reduced = load_model(JSONFBCModel, "../src/QuantomeRedNet/ReducedNetworks/$reducedModelName.json", A.CanonicalModel.Model)
-
-S_ToyModel2reduced, Metabolites_ToyModel2reduced, Reactions_ToyModel2reduced, Genes_ToyModel2reduced, m_ToyModel2reduced, n_ToyModel2reduced, n_genes_ToyModel2reduced, lb_ToyModel2reduced, ub_ToyModel2reduced, c_vector_ToyModel2reduced = sparseQFCA.dataOfModel(ToyModel2_reduced, 0)
-
-Reaction_Ids_ToyModel2reduced = collect(1:n_ToyModel2reduced)
-irreversible_reactions_id_ToyModel2reduced, reversible_reactions_id_ToyModel2reduced = sparseQFCA.reversibility(lb_ToyModel2reduced, Reaction_Ids_ToyModel2reduced, 0)
-
-S_ToyModel2reduced = dropzeros!(S_ToyModel2reduced)
-
-# Find the index of the first occurrence where the element in c_vector is equal to 1.0 in Reduced Network:
-index_c_ToyModel2reduced = findfirst(x -> x == 1.0, c_vector_ToyModel2reduced)
-
-c_vector_ToyModel2reduced = A_matrix' * c_vector_ToyModel2
-
-S_ToyModel2reduced, Metabolites_ToyModel2reduced, Metabolites_elimination = sparseQFCA.remove_zeroRows(S_ToyModel2reduced, Metabolites_ToyModel2reduced)
-
-printstyled("CompressedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_reduced, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")  # HiGHS supports LP/MILP
-
-# Add decision variables
-@variable(FBA_model_reduced, x[1:n_ToyModel2reduced])
-@variable(FBA_model_reduced, t >= 0)  # Auxiliary variable for norm constraint
-
-t = 1e-3
-
-@constraint(FBA_model_reduced, lb_ToyModel2 .<= A_matrix * x .<= ub_ToyModel2)
-
-# Replace Norm-2 with Norm-Infinity constraints
-@constraint(FBA_model_reduced, S_ToyModel2reduced * x .<= t)
-@constraint(FBA_model_reduced, S_ToyModel2reduced * x .>= -t)
-
-# Set objective
-@objective(FBA_model_reduced, Max, dot(c_vector_ToyModel2reduced, x))
-
-# Solve the model
-optimize!(FBA_model_reduced)
-
-# Extract results
-V_reduced = []
-for i in 1:length(x)
-    append!(V_reduced, value(x[i]))
-end
-
-println("V_reduced: FBA(Compressed)")
-println(V_reduced)
-
-println("termination_status = $(termination_status(FBA_model_reduced))")
-println("objective_value = $(objective_value(FBA_model_reduced))")
-
-V = A_matrix * V_reduced
-
-println("V = A * V_reduced")
-println(V)
-
-println("Biomass = $(Reactions_ToyModel[index_c_Toymodel]), Flux = $(V[index_c_Toymodel])")
-
-Original_ObjectiveValue = objective_value(FBA_model)
-Corrected_ObjectiveValue = objective_value(FBA_model_correction)
-Compressed_ObjectiveValue = objective_value(FBA_model_reduced)
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(ToyModel2, ToyModel2_compressed, A_matrix, modelName)
 
 @test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
 
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 # ToyModel3
 
 ToyModel3 = Model()
-ModelName = "ToyModel3"
+modelName = "ToyModel3"
 
-printstyled("$ModelName :\n"; color=:yellow)
+printstyled("$modelName:\n"; color=:yellow)
 
 # Genes:
 for i = 1:5
@@ -759,12 +541,10 @@ ToyModel3.reactions["R5"] = Reaction(
     objective_coefficient = 1.0,
 )
 
-
-ModelName = "ToyModel3"  # Define the model name as a string
 ToyModel3_json = convert(JSONFBCModel, ToyModel3)
-save_model(ToyModel3_json, "../test/Models/$ModelName.json")  # Use the string in the file path
+save_model(ToyModel3_json, "../test/Models/$modelName.json")  # Use the string in the file path
 # Read the JSON file
-data = JSON.parsefile("Models/$ModelName.json")
+data = JSON.parsefile("Models/$modelName.json")
 
 # Process reactions to replace '&&' with 'and' and '||' with 'or' in gene_reaction_rule
 if haskey(data, "reactions")
@@ -776,159 +556,47 @@ if haskey(data, "reactions")
 end
 
 # Write the corrected JSON file
-open("Models/$ModelName.json", "w") do file
+open("Models/$modelName.json", "w") do file
     JSON.print(file, data, 1)  # Use 'indent=1' for indentation
 end
 
 S_ToyModel3, Metabolites_ToyModel3, Reactions_ToyModel3, Genes_ToyModel3, m_ToyModel3, n_ToyModel3, n_genes_ToyModel3, lb_ToyModel3, ub_ToyModel3, c_vector_ToyModel3 = sparseQFCA.dataOfModel(ToyModel3)
 
-printstyled("FBA - $ModelName:\n"; color=:blue)
+## FBA
 
-# Define the model
-FBA_model, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-n = length(Reactions_ToyModel3)
-@variable(FBA_model, lb_ToyModel3[i] <= x[i = 1:n_ToyModel3] <= ub_ToyModel3[i])
-# Set the objective function
-@objective(FBA_model, Max, (c_vector_ToyModel3)'* x)
-@constraint(FBA_model, (S_ToyModel3) * x .== 0)
-# Solve the model
-optimize!(FBA_model)
-V_initial = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_initial, value(x[i]))
-end
-println(V_initial)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(ToyModel3, modelName)
 
-index_c_ToyModel3 = findfirst(x -> x == 1.0, c_vector_ToyModel3)
-println("termination_status = $(termination_status(FBA_model))")
-println("objective_value = $(objective_value(FBA_model))")
-println("Biomass = $(Reactions_ToyModel3[index_c_ToyModel3]), Flux = $(V_initial[index_c_ToyModel3])")
+## Corrected FBA
 
-# Separate reactions into reversible and irreversible sets:
-# Create an array of reaction IDs:
-Reaction_Ids_ToyModel3 = collect(1:n_ToyModel3)
-irreversible_reactions_id_ToyModel3, reversible_reactions_id_ToyModel3 = sparseQFCA.reversibility(lb_ToyModel3, Reaction_Ids_ToyModel3)
-# Create a new instance of the input model with homogenous bounds:
-ModelObject_CC_ToyModel3 = sparseQFCA.Model_CC(S_ToyModel3, Metabolites_ToyModel3, Reactions_ToyModel3, Genes_ToyModel3, m_ToyModel3, n_ToyModel3, lb_ToyModel3, ub_ToyModel3)
-blocked_index_ToyModel3, dualVar_ToyModel3 = sparseQFCA.swiftCC(ModelObject_CC_ToyModel3)
-blocked_index_rev_ToyModel3 = blocked_index_ToyModel3 ∩ reversible_reactions_id_ToyModel3
-# Convert to Vector{Int64}:
-blocked_index_rev_ToyModel3 = convert(Vector{Int64}, blocked_index_rev_ToyModel3)
-# Correct Reversibility:
-ModelObject_Crrection_ToyModel3 = sparseQFCA.Model_Correction(S_ToyModel3, Metabolites_ToyModel3, Reactions_ToyModel3, Genes_ToyModel3, m_ToyModel3, n_ToyModel3, lb_ToyModel3, ub_ToyModel3, irreversible_reactions_id_ToyModel3, reversible_reactions_id_ToyModel3)
-# Apply distributedReversibility_Correction() to the model and update Reversibility, S and bounds:
-SolverName = "HiGHS"
-S_ToyModel3, lb_ToyModel3, ub_ToyModel3, irreversible_reactions_id_ToyModel3, reversible_reactions_id_ToyModel3 = sparseQFCA.distributedReversibility_Correction(ModelObject_Crrection_ToyModel3, blocked_index_rev_ToyModel3, SolverName, false)
-
-printstyled("CorrectedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_correction, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-@variable(FBA_model_correction, lb_ToyModel3[i] <= x[i = 1:n_ToyModel3] <= ub_ToyModel3[i])
-# Set the objective function
-println("Objective Function = C'x = $((c_vector_ToyModel3)'* x)")
-@objective(FBA_model_correction, Max, (c_vector_ToyModel3)'* x)
-@constraint(FBA_model_correction, (S_ToyModel3) * x .== 0)
-# Solve the model
-optimize!(FBA_model_correction)
-V_correction = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_correction, value(x[i]))
-end
-
-println("V_correction:")
-println(V_correction)
-
-println("termination_status = $(termination_status(FBA_model_correction))")
-println("objective_value = $(objective_value(FBA_model_correction))")
-println("Biomass = $(Reactions_ToyModel3[index_c_ToyModel3]), Flux = $(V_correction[index_c_ToyModel3])")
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(ToyModel3, modelName)
 
 ## QuantomeRedNet
 
+myModel_ToyModel3 = load_model(JSONFBCModel, "Models/$modelName.json", A.CanonicalModel.Model)
+
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
+
 ModelName = "ToyModel3"
-myModel_ToyModel3 = load_model(JSONFBCModel, "Models/$ModelName.json", A.CanonicalModel.Model)
 
-representatives = []
-representatives = convert(Vector{Int64}, representatives)
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_ToyModel3, ModelName, "HiGHS", false, false)
 
-printstyled("QuantomeRedNet - $ModelName :\n"; color=:yellow)
+ToyModel3_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
 
-reducedModelName, A_matrix, reduction_map = sparseQFCA.quantomeReducer(myModel_ToyModel3, ModelName, "HiGHS", false, false, representatives)
+S_ToyModel3compressed, Metabolites_ToyModel3compressed, Reactions_ToyModel3compressed, Genes_ToyModel3compressed, m_ToyModel3compressed, n_ToyModel3compressed, n_genes_ToyModel3compressed, lb_ToyModel3compressed, ub_ToyModel3compressed, c_vector_ToyModel3compressed = sparseQFCA.dataOfModel(ToyModel3_compressed, 0)
 
-ToyModel3_reduced = load_model(JSONFBCModel, "../src/QuantomeRedNet/ReducedNetworks/$reducedModelName.json", A.CanonicalModel.Model)
-
-S_ToyModel3reduced, Metabolites_ToyModel3reduced, Reactions_ToyModel3reduced, Genes_ToyModel3reduced, m_ToyModel3reduced, n_ToyModel3reduced, n_genes_ToyModel3reduced, lb_ToyModel3reduced, ub_ToyModel3reduced, c_vector_ToyModel3reduced = sparseQFCA.dataOfModel(ToyModel3_reduced, 0)
-
-Reaction_Ids_ToyModel3reduced = collect(1:n_ToyModel3reduced)
-irreversible_reactions_id_ToyModel3reduced, reversible_reactions_id_ToyModel3reduced = sparseQFCA.reversibility(lb_ToyModel3reduced, Reaction_Ids_ToyModel3reduced, 0)
-
-S_ToyModel3reduced = dropzeros!(S_ToyModel3reduced)
-
-# Find the index of the first occurrence where the element in c_vector is equal to 1.0 in Reduced Network:
-index_c_ToyModel3reduced = findfirst(x -> x == 1.0, c_vector_ToyModel3reduced)
-
-c_vector_ToyModel3reduced = A_matrix' * c_vector_ToyModel3
-
-S_ToyModel3reduced, Metabolites_ToyModel3reduced, Metabolites_elimination = sparseQFCA.remove_zeroRows(S_ToyModel3reduced, Metabolites_ToyModel3reduced)
-
-printstyled("CompressedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_reduced, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")  # HiGHS supports LP/MILP
-
-# Add decision variables
-@variable(FBA_model_reduced, x[1:n_ToyModel3reduced])
-@variable(FBA_model_reduced, t >= 0)  # Auxiliary variable for norm constraint
-
-t = 1e-3
-
-@constraint(FBA_model_reduced, lb_ToyModel3 .<= A_matrix * x .<= ub_ToyModel3)
-
-# Replace Norm-2 with Norm-Infinity constraints
-@constraint(FBA_model_reduced, S_ToyModel3reduced * x .<= t)
-@constraint(FBA_model_reduced, S_ToyModel3reduced * x .>= -t)
-
-# Set objective
-@objective(FBA_model_reduced, Max, dot(c_vector_ToyModel3reduced, x))
-
-# Solve the model
-optimize!(FBA_model_reduced)
-
-# Extract results
-V_reduced = []
-for i in 1:length(x)
-    append!(V_reduced, value(x[i]))
-end
-
-println("V_reduced: FBA(Compressed)")
-println(V_reduced)
-
-println("termination_status = $(termination_status(FBA_model_reduced))")
-println("objective_value = $(objective_value(FBA_model_reduced))")
-
-V = A_matrix * V_reduced
-
-println("V = A * V_reduced")
-println(V)
-
-println("Biomass = $(Reactions_ToyModel[index_c_Toymodel]), Flux = $(V[index_c_Toymodel])")
-
-Original_ObjectiveValue = objective_value(FBA_model)
-Corrected_ObjectiveValue = objective_value(FBA_model_correction)
-Compressed_ObjectiveValue = objective_value(FBA_model_reduced)
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(ToyModel3, ToyModel3_compressed, A_matrix, modelName)
 
 @test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
 
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 # ToyModel4
 
 ToyModel4 = Model()
-ModelName = "ToyModel4"
+modelName = "ToyModel4"
 
-printstyled("$ModelName :\n"; color=:yellow)
+printstyled("$modelName:\n"; color=:yellow)
 
 # Genes:
 for i = 1:7
@@ -1021,12 +689,10 @@ ToyModel4.reactions["rxn1"] = Reaction(
     objective_coefficient = 0.0,
 )
 
-
-ModelName = "ToyModel4"  # Define the model name as a string
 ToyModel4_json = convert(JSONFBCModel, ToyModel4)
-save_model(ToyModel4_json, "../test/Models/$ModelName.json")  # Use the string in the file path
+save_model(ToyModel4_json, "../test/Models/$modelName.json")  # Use the string in the file path
 # Read the JSON file
-data = JSON.parsefile("Models/$ModelName.json")
+data = JSON.parsefile("Models/$modelName.json")
 
 # Process reactions to replace '&&' with 'and' and '||' with 'or' in gene_reaction_rule
 if haskey(data, "reactions")
@@ -1038,149 +704,240 @@ if haskey(data, "reactions")
 end
 
 # Write the corrected JSON file
-open("Models/$ModelName.json", "w") do file
+open("Models/$modelName.json", "w") do file
     JSON.print(file, data, 1)  # Use 'indent=1' for indentation
 end
 
 S_ToyModel4, Metabolites_ToyModel4, Reactions_ToyModel4, Genes_ToyModel4, m_ToyModel4, n_ToyModel4, n_genes_ToyModel4, lb_ToyModel4, ub_ToyModel4, c_vector_ToyModel4 = sparseQFCA.dataOfModel(ToyModel4)
 
-printstyled("FBA - $ModelName:\n"; color=:blue)
+## FBA
 
-# Define the model
-FBA_model, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-n = length(Reactions_ToyModel4)
-@variable(FBA_model, lb_ToyModel4[i] <= x[i = 1:n_ToyModel4] <= ub_ToyModel4[i])
-# Set the objective function
-@objective(FBA_model, Max, (c_vector_ToyModel4)'* x)
-@constraint(FBA_model, (S_ToyModel4) * x .== 0)
-# Solve the model
-optimize!(FBA_model)
-V_initial = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_initial, value(x[i]))
-end
-println(V_initial)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(ToyModel4, modelName)
 
-index_c_ToyModel4 = findfirst(x -> x == 1.0, c_vector_ToyModel4)
-println("termination_status = $(termination_status(FBA_model))")
-println("objective_value = $(objective_value(FBA_model))")
-println("Biomass = $(Reactions_ToyModel4[index_c_ToyModel4]), Flux = $(V_initial[index_c_ToyModel4])")
+## Corrected FBA
 
-# Separate reactions into reversible and irreversible sets:
-# Create an array of reaction IDs:
-Reaction_Ids_ToyModel4 = collect(1:n_ToyModel4)
-irreversible_reactions_id_ToyModel4, reversible_reactions_id_ToyModel4 = sparseQFCA.reversibility(lb_ToyModel4, Reaction_Ids_ToyModel4)
-# Create a new instance of the input model with homogenous bounds:
-ModelObject_CC_ToyModel4 = sparseQFCA.Model_CC(S_ToyModel4, Metabolites_ToyModel4, Reactions_ToyModel4, Genes_ToyModel4, m_ToyModel4, n_ToyModel4, lb_ToyModel4, ub_ToyModel4)
-blocked_index_ToyModel4, dualVar_ToyModel4 = sparseQFCA.swiftCC(ModelObject_CC_ToyModel4)
-blocked_index_rev_ToyModel4 = blocked_index_ToyModel4 ∩ reversible_reactions_id_ToyModel4
-# Convert to Vector{Int64}:
-blocked_index_rev_ToyModel4 = convert(Vector{Int64}, blocked_index_rev_ToyModel4)
-# Correct Reversibility:
-ModelObject_Crrection_ToyModel4 = sparseQFCA.Model_Correction(S_ToyModel4, Metabolites_ToyModel4, Reactions_ToyModel4, Genes_ToyModel4, m_ToyModel4, n_ToyModel4, lb_ToyModel4, ub_ToyModel4, irreversible_reactions_id_ToyModel4, reversible_reactions_id_ToyModel4)
-# Apply distributedReversibility_Correction() to the model and update Reversibility, S and bounds:
-SolverName = "HiGHS"
-S_ToyModel4, lb_ToyModel4, ub_ToyModel4, irreversible_reactions_id_ToyModel4, reversible_reactions_id_ToyModel4 = sparseQFCA.distributedReversibility_Correction(ModelObject_Crrection_ToyModel4, blocked_index_rev_ToyModel4, SolverName, false)
-
-printstyled("CorrectedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_correction, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")
-# Add decision variables
-@variable(FBA_model_correction, lb_ToyModel4[i] <= x[i = 1:n_ToyModel4] <= ub_ToyModel4[i])
-# Set the objective function
-println("Objective Function = C'x = $((c_vector_ToyModel4)'* x)")
-@objective(FBA_model_correction, Max, (c_vector_ToyModel4)'* x)
-@constraint(FBA_model_correction, (S_ToyModel4) * x .== 0)
-# Solve the model
-optimize!(FBA_model_correction)
-V_correction = Array{Float64}([])
-for i in 1:length(x)
-    append!(V_correction, value(x[i]))
-end
-
-println("V_correction:")
-println(V_correction)
-
-println("termination_status = $(termination_status(FBA_model_correction))")
-println("objective_value = $(objective_value(FBA_model_correction))")
-println("Biomass = $(Reactions_ToyModel4[index_c_ToyModel4]), Flux = $(V_correction[index_c_ToyModel4])")
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(ToyModel4, modelName)
 
 ## QuantomeRedNet
 
+myModel_ToyModel4 = load_model(JSONFBCModel, "Models/$modelName.json", A.CanonicalModel.Model)
+
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
+
 ModelName = "ToyModel4"
-myModel_ToyModel4 = load_model(JSONFBCModel, "Models/$ModelName.json", A.CanonicalModel.Model)
 
-representatives = []
-representatives = convert(Vector{Int64}, representatives)
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_ToyModel4, ModelName, "HiGHS", false, false)
 
-printstyled("QuantomeRedNet - $ModelName :\n"; color=:yellow)
+ToyModel4_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
 
-reducedModelName, A_matrix, reduction_map = sparseQFCA.quantomeReducer(myModel_ToyModel4, ModelName, "HiGHS", false, false, representatives)
+S_ToyModel4compressed, Metabolites_ToyModel4compressed, Reactions_ToyModel4compressed, Genes_ToyModel4compressed, m_ToyModel4compressed, n_ToyModel4compressed, n_genes_ToyModel4compressed, lb_ToyModel4compressed, ub_ToyModel4compressed, c_vector_ToyModel4compressed = sparseQFCA.dataOfModel(ToyModel4_compressed, 0)
 
-ToyModel4_reduced = load_model(JSONFBCModel, "../src/QuantomeRedNet/ReducedNetworks/$reducedModelName.json", A.CanonicalModel.Model)
-
-S_ToyModel4reduced, Metabolites_ToyModel4reduced, Reactions_ToyModel4reduced, Genes_ToyModel4reduced, m_ToyModel4reduced, n_ToyModel4reduced, n_genes_ToyModel4reduced, lb_ToyModel4reduced, ub_ToyModel4reduced, c_vector_ToyModel4reduced = sparseQFCA.dataOfModel(ToyModel4_reduced, 0)
-
-Reaction_Ids_ToyModel4reduced = collect(1:n_ToyModel4reduced)
-irreversible_reactions_id_ToyModel4reduced, reversible_reactions_id_ToyModel4reduced = sparseQFCA.reversibility(lb_ToyModel4reduced, Reaction_Ids_ToyModel4reduced, 0)
-
-S_ToyModel4reduced = dropzeros!(S_ToyModel4reduced)
-
-# Find the index of the first occurrence where the element in c_vector is equal to 1.0 in Reduced Network:
-index_c_ToyModel4reduced = findfirst(x -> x == 1.0, c_vector_ToyModel4reduced)
-
-c_vector_ToyModel4reduced = A_matrix' * c_vector_ToyModel4
-
-S_ToyModel4reduced, Metabolites_ToyModel4reduced, Metabolites_elimination = sparseQFCA.remove_zeroRows(S_ToyModel4reduced, Metabolites_ToyModel4reduced)
-
-printstyled("CompressedFBA - $ModelName:\n"; color=:blue)
-
-# Define the model
-FBA_model_reduced, solver = sparseQFCA.changeSparseQFCASolver("HiGHS")  # HiGHS supports LP/MILP
-
-# Add decision variables
-@variable(FBA_model_reduced, x[1:n_ToyModel4reduced])
-@variable(FBA_model_reduced, t >= 0)  # Auxiliary variable for norm constraint
-
-t = 1e-3
-
-@constraint(FBA_model_reduced, lb_ToyModel4 .<= A_matrix * x .<= ub_ToyModel4)
-
-# Replace Norm-2 with Norm-Infinity constraints
-@constraint(FBA_model_reduced, S_ToyModel4reduced * x .<= t)
-@constraint(FBA_model_reduced, S_ToyModel4reduced * x .>= -t)
-
-# Set objective
-@objective(FBA_model_reduced, Max, dot(c_vector_ToyModel4reduced, x))
-
-# Solve the model
-optimize!(FBA_model_reduced)
-
-# Extract results
-V_reduced = []
-for i in 1:length(x)
-    append!(V_reduced, value(x[i]))
-end
-
-println("V_reduced: FBA(Compressed)")
-println(V_reduced)
-
-println("termination_status = $(termination_status(FBA_model_reduced))")
-println("objective_value = $(objective_value(FBA_model_reduced))")
-
-V = A_matrix * V_reduced
-
-println("V = A * V_reduced")
-println(V)
-
-println("Biomass = $(Reactions_ToyModel4[index_c_ToyModel4]), Flux = $(V[index_c_ToyModel4])")
-
-Original_ObjectiveValue = objective_value(FBA_model)
-Corrected_ObjectiveValue = objective_value(FBA_model_correction)
-Compressed_ObjectiveValue = objective_value(FBA_model_reduced)
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(ToyModel4, ToyModel4_compressed, A_matrix, modelName)
 
 @test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
 
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
+
+### Metabolic Network Compression
+
+printstyled("Metabolic Network Compression:\n"; color=:magenta)
+
+modelName = "e_coli_core"
+
+# Extracte relevant data from input model:
+
+S_e_coli_core, Metabolites_e_coli_core, Reactions_e_coli_core, Genes_e_coli_core, m_e_coli_core, n_e_coli_core, n_genes_e_coli_core, lb_e_coli_core, ub_e_coli_core, c_vector_e_coli_core = sparseQFCA.dataOfModel(myModel_e_coli_core)
+
+## FBA
+
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(myModel_e_coli_core, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## Corrected FBA
+
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_e_coli_core, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## QuantomeRedNet
+
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
+
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_e_coli_core, ModelName, "HiGHS", true, false)
+
+e_coli_core_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
+
+S_e_coli_core_compressed, Metabolites_e_coli_core_compressed, Reactions_e_coli_core_compressed, Genes_e_coli_core_compressed, m_e_coli_core_compressed, n_e_coli_core_compressed, n_genes_e_coli_core_compressed, lb_e_coli_core_compressed, ub_e_coli_core_compressed, c_vector_e_coli_core_compressed = sparseQFCA.dataOfModel(e_coli_core_compressed, 0)
+
+e_coli_core = load_model(JSONFBCModel, "Models/e_coli_core.json", A.CanonicalModel.Model)
+
+result_compress, time_taken_compress, bytes_alloc_compress, gctime_compress = @timed begin
+
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(e_coli_core, e_coli_core_compressed, A_matrix, modelName)
+
+end
+
+@test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
+
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+### distributedFBA
+
+using COBRA
+
+#workersPool, nWorkers = createPool(8, false)
+
+model = loadModel("Models/e_coli_core.mat", "e_coli_core")
+
+result_distributedFBA, time_taken_distributedFBA, bytes_alloc_distributedFBA, gctime_distributedFBA = @timed begin
+## set the reaction list
+
+rxnsList = 1:n_e_coli_core
+
+## select the reaction optimization mode
+##  0: only minimization
+##  1: only maximization
+##  2: maximization and minimization
+
+rxnsOptMode = 1
+
+## specify the solver name
+
+solverName = :GLPK
+
+# set solver parameters
+    solParams = [
+        # decides whether or not results are displayed on screen in an application of the C API.
+        (:CPX_PARAM_SCRIND,         0);
+
+        # sets the parallel optimization mode. Possible modes are automatic, deterministic, and opportunistic.
+        (:CPX_PARAM_PARALLELMODE,   1);
+
+        # sets the default maximal number of parallel threads that will be invoked by any CPLEX parallel optimizer.
+        (:CPX_PARAM_THREADS,        1);
+
+        # partitions the number of threads for CPLEX to use for auxiliary tasks while it solves the root node of a problem.
+        (:CPX_PARAM_AUXROOTTHREADS, 2);
+
+        # decides how to scale the problem matrix.
+        (:CPX_PARAM_SCAIND,         -1);
+
+        # controls which algorithm CPLEX uses to solve continuous models (LPs).
+        (:CPX_PARAM_LPMETHOD,       0)
+    ] #end of solParams
+
+## change the COBRA solver
+
+solver = changeCobraSolver(solverName, solParams)
+
+# preFBA
+
+optSol, fbaSol = preFBA!(model, solver)
+
+# spliteRange
+
+splitRange(model, rxnsList, 4, 1)
+
+# loopFBA
+
+m, x, c = buildCobraLP(model, solver)
+
+retObj, retFlux, retStat = loopFBA(m, x, c, rxnsList, n_e_coli_core)
+
+minFlux, maxFlux = distributedFBA(model, solver)
+
+end
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+## COBREXA
+
+import JSONFBCModels
+import HiGHS
+
+model = load_model("Models/e_coli_core.json")
+
+result, time_taken_COBREXA, bytes_alloc_COBREXA, gctime_COBREXA = @timed begin
+
+solution = flux_balance_analysis(model, optimizer = HiGHS.Optimizer)
+println("COBREXA FBA:")
+println("Biomass Flux = $(solution.objective)")
+
+end
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+println("compressedFBA:")
+println("Time: ", time_taken_compress, " seconds")
+println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_compress, " seconds")
+
+println("distrubtedFBA:")
+println("Time: ", time_taken_distributedFBA, " seconds")
+println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
+
+println("COBREXA FBA:")
+println("Time: ", time_taken_COBREXA, " seconds")
+println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
+
+### Compressed Flux Balance Analysis
+
+printstyled("Compressed Flux Balance Analysis by using CompressedModel:\n"; color=:magenta)
+
+## e_coli_core
+
+modelName = "e_coli_core"
+myModel_e_coli_core2 = load_model(JSONFBCModel, "Models/e_coli_core.json", A.CanonicalModel.Model)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(myModel_e_coli_core2, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_e_coli_core2, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## Load Compressed Model
+
+myModel_e_coli_core2_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/e_coli_core_compressed.json", A.CanonicalModel.Model)
+
+## Load A Matrix
+
+jld_file = jldopen("../src/QuantomeRedNet/CompressionResults/A_e_coli_core_compressed.jld2", "r")
+    A_matrix = jld_file["A"]
+close(jld_file)
+
+result_compress, time_taken_compress, bytes_alloc_compress, gctime_compress = @timed begin
+
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(myModel_e_coli_core2, myModel_e_coli_core2_compressed, A_matrix, modelName)
+
+end
+
+println("compressedFBA:")
+println("Time: ", time_taken_compress, " seconds")
+println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_compress, " seconds")
+
+println("distrubtedFBA:")
+println("Time: ", time_taken_distributedFBA, " seconds")
+println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
+
+println("COBREXA FBA:")
+println("Time: ", time_taken_COBREXA, " seconds")
+println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+### End
