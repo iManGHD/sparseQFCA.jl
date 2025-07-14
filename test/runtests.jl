@@ -783,7 +783,7 @@ end
 
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
-
+#=
 ### distributedFBA
 
 using COBRA
@@ -850,7 +850,7 @@ retObj, retFlux, retStat = loopFBA(m, x, c, rxnsList, n_e_coli_core)
 minFlux, maxFlux = distributedFBA(model, solver)
 
 end
-
+=#
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
@@ -876,12 +876,12 @@ println("compressedFBA:")
 println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
-
+#=
 println("distrubtedFBA:")
 println("Time: ", time_taken_distributedFBA, " seconds")
 println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
-
+=#
 println("COBREXA FBA:")
 println("Time: ", time_taken_COBREXA, " seconds")
 println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
@@ -926,12 +926,12 @@ println("compressedFBA:")
 println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
-
+#=
 println("distrubtedFBA:")
 println("Time: ", time_taken_distributedFBA, " seconds")
 println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
-
+=#
 println("COBREXA FBA:")
 println("Time: ", time_taken_COBREXA, " seconds")
 println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
