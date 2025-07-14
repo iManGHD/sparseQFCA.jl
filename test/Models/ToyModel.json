@@ -61,12 +61,12 @@
    "metabolites": {
     "m5": -1.0
    },
-   "lower_bound": -1000.0,
+   "lower_bound": -1.0e6,
    "id": "EX_1",
    "notes": {},
    "gene_reaction_rule": "(G7)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -79,7 +79,7 @@
    "notes": {},
    "gene_reaction_rule": "(G8)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 1.0
   },
   {
@@ -93,7 +93,7 @@
    "notes": {},
    "gene_reaction_rule": "(G1 and G2) or (G3)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -107,7 +107,7 @@
    "notes": {},
    "gene_reaction_rule": "(G4) or (G1 and G7) or (G3 and G5)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -116,12 +116,12 @@
     "m6": 1.0,
     "m3": -1.0
    },
-   "lower_bound": -1000.0,
+   "lower_bound": -1.0e6,
    "id": "M3t",
    "notes": {},
    "gene_reaction_rule": "(G6)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -130,12 +130,12 @@
     "m4": 1.0,
     "m1": -1.0
    },
-   "lower_bound": -1000.0,
+   "lower_bound": -1.0e6,
    "id": "rxn1",
    "notes": {},
    "gene_reaction_rule": "(G9)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -150,7 +150,7 @@
    "notes": {},
    "gene_reaction_rule": "(G2) or (G3)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
@@ -164,7 +164,7 @@
    "notes": {},
    "gene_reaction_rule": "(G3 and G4) or (G5 and G6)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   }
  ],
