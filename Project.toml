@@ -1,7 +1,7 @@
 name = "sparseQFCA"
 uuid = "077cf62c-ad2d-5edd-99ec-638372f8b004"
 authors = ["Mojtaba Tefagh <mtefagh@sharif.edu>", "Iman Ghadimi <iman.diligent@gmail.com>"]
-version = "2.2.0"
+version = "2.3.0"
 
 [deps]
 AbstractFBCModels = "5a4f3dfa-1789-40f8-8221-69268c29937c"
@@ -17,6 +17,7 @@ ECOS = "e2685f51-7e38-5353-a97d-a921fd2c8199"
 GLPK = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSONFBCModels = "475c1105-d6ed-49c1-9b32-c11adca6d3e8"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
