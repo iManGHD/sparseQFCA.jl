@@ -123,7 +123,7 @@ See also: `Model_CC`, `model_CC_Constructor()`, `reversibility()`
 
 """
 
-function swiftCC(ModelObject_CC::Model_CC, SolverName::String="HiGHS", OctuplePrecision::Bool=false, Tolerance::Float64=1e-6, printLevel::Int=1)
+function swiftCC(ModelObject_CC::Model_CC, SolverName::String="HiGHS", OctuplePrecision::Bool=false, Tolerance::Float64=1e-9, printLevel::Int=1)
 
     ## Extract relevant information from the ModelObject_CC
 
@@ -190,8 +190,17 @@ function swiftCC(ModelObject_CC::Model_CC, SolverName::String="HiGHS", OctuplePr
     end
 
     # Define variables V and u with their lower and upper bounds:
-    @variable(model, lb_homo[i] <= V[i = 1:n] <= ub_homo[i])
+    @variable(model, V[i = 1:n])
     @variable(model, lb_u[i] <= u[i = 1:n_irr] <= ub_u[i])
+
+    for i = 1:n
+        if lb_homo[i] == 0.0
+            @constraint(model, lb_homo[i] <= V[i])
+        end
+        if ub_homo[i] == 0.0
+            @constraint(model, V[i] <= ub_homo[i])
+        end
+    end
 
     # Add a constraint that ensures the mass balance of the system:
     @constraint(model, c1, S * V .== 0)
@@ -216,7 +225,8 @@ function swiftCC(ModelObject_CC::Model_CC, SolverName::String="HiGHS", OctuplePr
 
     # Iterate over the irreversible reactions and check if the corresponding u variable is close to 0, If it is, the reaction is considered blocked and its ID is added to the list:
     for i = 1:n_irr
-        if isapprox(value(u[i]), 0.0, atol = Tolerance)
+        if value(u[i]) <= 0.5
+        #if isapprox(value(u[i]), 0.0, atol = Tolerance)
             append!(irr_blocked_reactions, irreversible_reactions_id[i])
         end
     end
