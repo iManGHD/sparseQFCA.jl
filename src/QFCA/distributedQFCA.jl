@@ -10,7 +10,7 @@ module DistributedQFCA
 
 export Model_QFCA, model_QFCA_Constructor, distributedQFCA
 
-using JuMP, COBREXA, LinearAlgebra, SparseArrays, Distributed, SharedArrays, Pardiso
+using JuMP, COBREXA, LinearAlgebra, SparseArrays, Distributed, SharedArrays
 
 include("../Pre_Processing/Pre_processing.jl")
 
