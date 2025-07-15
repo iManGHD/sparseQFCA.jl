@@ -751,14 +751,24 @@ S_e_coli_core, Metabolites_e_coli_core, Reactions_e_coli_core, Genes_e_coli_core
 
 ## FBA
 
+result_original, time_taken_original, bytes_alloc_original, gctime_original = @timed begin
+
 V_initial, Original_ObjectiveValue = sparseQFCA.FBA(myModel_e_coli_core, modelName)
 
+end
+
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
 
 ## Corrected FBA
 
+result_corrected, time_taken_corrected, bytes_alloc_corrected, gctime_corrected = @timed begin
+
 V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_e_coli_core, modelName)
 
+end
+
+# Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
 
 ## QuantomeRedNet
@@ -855,7 +865,7 @@ end
 #printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 ## COBREXA
-
+#=
 import JSONFBCModels
 import HiGHS
 
@@ -868,25 +878,36 @@ println("COBREXA FBA:")
 println("Biomass Flux = $(solution.objective)")
 
 end
-
+=#
 # Print a separator:
-printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+#printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+println("FBA:")
+println("Time: ", time_taken_original, " seconds")
+println("Memory Allocations: ", bytes_alloc_original / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_original, " seconds")
+
+println("correctedFBA:")
+println("Time: ", time_taken_corrected, " seconds")
+println("Memory Allocations: ", bytes_alloc_corrected / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_corrected, " seconds")
 
 println("compressedFBA:")
 println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
+
 #=
 println("distrubtedFBA:")
 println("Time: ", time_taken_distributedFBA, " seconds")
 println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
-=#
+
 println("COBREXA FBA:")
 println("Time: ", time_taken_COBREXA, " seconds")
 println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
-
+=#
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
@@ -931,12 +952,12 @@ println("distrubtedFBA:")
 println("Time: ", time_taken_distributedFBA, " seconds")
 println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
-=#
+
 println("COBREXA FBA:")
 println("Time: ", time_taken_COBREXA, " seconds")
 println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
-
+=#
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
