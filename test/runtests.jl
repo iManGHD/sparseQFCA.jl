@@ -7,7 +7,7 @@ using Distributed
 
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
-addprocs(7)
+#addprocs(7)
 println("Number of Proccess : $(nprocs())")
 println("Number of Workers  : $(nworkers())")
 
@@ -852,7 +852,7 @@ minFlux, maxFlux = distributedFBA(model, solver)
 end
 =#
 # Print a separator:
-printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+#printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 ## COBREXA
 

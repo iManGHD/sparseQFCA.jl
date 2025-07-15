@@ -696,11 +696,7 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     S_compressed, Metabolites_compressed, Reactions_compressed, Genes_compressed, m_compressed, n_compressed, n_genes_compressed, lb_compressed, ub_compressed, c_vector_compressed = dataOfModel(model, 0)
 
-    display(S_compressed)
-
     dropzeros!(S_compressed)
-
-    display(S_compressed)
 
     for i ∈ model.reactions
         index_Reactions_compressed = findfirst(x -> x == i.first, Reactions_compressed)
@@ -736,12 +732,8 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
         JSON.print(file, data, 1)  # Use 'indent=1' for indentation
     end
 
-    println("typeof A = $(typeof(A))")
-
     A_sparse = sparse(Array(A))
     dropzeros!(A_sparse)
-
-    println("typeof A = $(typeof(A_sparse))")
 
     # Save matrix to a file
     @save "../src/QuantomeRedNet/CompressionResults/A_$CompressedModelName.jld2" A_sparse
