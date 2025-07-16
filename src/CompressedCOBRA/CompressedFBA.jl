@@ -24,7 +24,8 @@ using .SwiftCC
 """
     FBA(model, modelName)
 
-The function is designed to perform metabolic network reduction by removing blocked reactions, merge all the fully coupled reactions,
+The function performs Flux Balance Analysis (FBA) to optimize the flux distribution in a metabolic network. FBA aims to
+maximize or minimize an objective function, such as biomass production, subject to stoichiometric and capacity constraints.
 
 # INPUTS
 
@@ -97,7 +98,8 @@ end
 """
     correctedFBA(model, modelName)
 
-The function is designed to perform metabolic network reduction by removing blocked reactions, merge all the fully coupled reactions,
+The function performs Flux Balance Analysis (FBA) to optimize the flux distribution in a reversibility corrected metabolic network.
+FBA aims to maximize or minimize an objective function, such as biomass production, subject to stoichiometric and capacity constraints.
 
 # INPUTS
 
@@ -192,7 +194,8 @@ end
 """
     compressedFBA(model, compressedModel, A, modelName)
 
-The function is designed to perform metabolic network reduction by removing blocked reactions, merge all the fully coupled reactions,
+The function performs Flux Balance Analysis (FBA) to optimize the flux distribution in a compressed metabolic network. FBA aims
+to maximize or minimize an objective function, such as biomass production, subject to stoichiometric and capacity constraints.
 
 # INPUTS
 
@@ -232,7 +235,8 @@ function compressedFBA(model, compressedModel, A, modelName, printLevel::Int=1)
 
     S, Metabolites, Reactions, Genes, m, n, n_genes, lb, ub, c_vector = dataOfModel(model, 0)
     row_S, col_S = size(S)
-    representatives = [i for i in 1:n if lb[i] ∉ (0.0, -1000.0, 1000.0) || ub[i] ∉ (0.0, -1000.0, 1000.0)]
+    M = 1000.0
+    representatives = [i for i in 1:n if lb[i] ∉ (0.0, -M, M) || ub[i] ∉ (0.0, -M, M)]
     index_c = findfirst(x -> x == 1.0, c_vector)
 
     ## Correct model reversibility

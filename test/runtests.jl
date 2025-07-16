@@ -7,7 +7,7 @@ using Distributed
 
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
-#addprocs(7)
+addprocs(7)
 println("Number of Proccess : $(nprocs())")
 println("Number of Workers  : $(nworkers())")
 
