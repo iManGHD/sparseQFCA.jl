@@ -49,7 +49,7 @@ for DCE-induced compressions. Finally, it generates information about the compre
 # INPUTS
 
 - `model`:                     A CanonicalModel that has been built using COBREXA's `load_model` function.
-- `CompressedModelName`        A string, name of the metabolic network..
+- `CompressedModelName`        A string, name of the metabolic network.
 
 # OPTIONAL INPUTS
 

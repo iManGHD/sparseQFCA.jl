@@ -119,7 +119,7 @@ FBA aims to maximize or minimize an objective function, such as biomass producti
 
 - Full input/output example
 ```julia
-julia> V_correction, objective_value = FBA(model, "e_coli_core")
+julia> V_correction, objective_value = correctedFBA(model, "e_coli_core")
 ```
 
 See also: `dataOfModel()`, `reversibility()`, `swiftCC()`, `distributedReversibility_Correction()`, `changeSparseQFCASolver()`

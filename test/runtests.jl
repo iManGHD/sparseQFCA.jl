@@ -36,7 +36,7 @@ printstyled("#------------------------------------------------------------------
 printstyled("sparseQFCA :\n"; color=:magenta)
 printstyled("iIS312 :\n"; color=:yellow)
 
-## Extracte relevant data from input model
+## Extract relevant data from input model
 
 S_iIS312, Metabolites_iIS312, Reactions_iIS312, Genes_iIS312, m_iIS312, n_iIS312, n_genes_iIS312, lb_iIS312, ub_iIS312, c_vector = sparseQFCA.dataOfModel(myModel_iIS312)
 # Ensure that the bounds of all reactions are homogenous:
@@ -140,7 +140,7 @@ printstyled("#------------------------------------------------------------------
 printstyled("distributedQFCA :\n"; color=:yellow)
 printstyled("e_coli_core :\n"; color=:yellow)
 
-# Extracte relevant data from input model:
+# Extract relevant data from input model:
 S_e_coli_core, Metabolites_e_coli_core, Reactions_e_coli_core, Genes_e_coli_core, m_e_coli_core, n_e_coli_core, n_genes_e_coli_core, lb_e_coli_core, ub_e_coli_core, c_vector = sparseQFCA.dataOfModel(myModel_e_coli_core)
 # Ensure that the bounds of all reactions are homogenous
 lb_e_coli_core, ub_e_coli_core = sparseQFCA.homogenization(lb_e_coli_core, ub_e_coli_core)
@@ -176,7 +176,7 @@ printstyled("#------------------------------------------------------------------
 printstyled("distributedQFCA :\n"; color=:yellow)
 printstyled("iIS312 :\n"; color=:yellow)
 
-# Extracte relevant data from input model:
+# Extract relevant data from input model:
 S_iIS312, Metabolites_iIS312, Reactions_iIS312, Genes_iIS312, m_iIS312, n_iIS312, n_genes_iIS312, lb_iIS312, ub_iIS312, c_vector = sparseQFCA.dataOfModel(myModel_iIS312)
 # Ensure that the bounds of all reactions are homogenous
 lb_iIS312, ub_iIS312 = sparseQFCA.homogenization(lb_iIS312, ub_iIS312)
@@ -745,7 +745,7 @@ printstyled("Metabolic Network Compression:\n"; color=:magenta)
 
 modelName = "e_coli_core"
 
-# Extracte relevant data from input model:
+# Extract relevant data from input model:
 
 S_e_coli_core, Metabolites_e_coli_core, Reactions_e_coli_core, Genes_e_coli_core, m_e_coli_core, n_e_coli_core, n_genes_e_coli_core, lb_e_coli_core, ub_e_coli_core, c_vector_e_coli_core = sparseQFCA.dataOfModel(myModel_e_coli_core)
 
