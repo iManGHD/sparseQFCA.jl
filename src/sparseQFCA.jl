@@ -17,8 +17,9 @@ module sparseQFCA
     include("QFCA/distributedQFCA.jl")
     include("QFCA/SQFCA.jl")
     include("QuantomeRedNet/QuantomeReducer.jl")
+    include("CompressedCOBRA/CompressedFBA.jl")
 
-    using .Pre_processing, .Solve, .TheNaiveApproach, .SwiftCC, .DistributedQFCA, .SQFCA, .QuantomeReducer
+    using .Pre_processing, .Solve, .TheNaiveApproach, .SwiftCC, .DistributedQFCA, .SQFCA, .QuantomeReducer, .CompressedFBA
 
 end
 

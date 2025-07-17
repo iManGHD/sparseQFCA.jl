@@ -1,6 +1,6 @@
 #-----------------------------------------------------------------------------------------------------------------------------------------------------
 #=
-    Purpose:    Metabolic Network Reductions based on Quantitative Flux Coupling Analysis and the concept of lossless compression in Information Theory.
+    Purpose:    Metabolic Network Compression based on Quantitative Flux Coupling Analysis and the concept of lossless compression.
     Author:     Iman Ghadimi, Mojtaba Tefagh - Sharif University of Technology
     Date:       May 2023
 =#
@@ -34,19 +34,22 @@ using .SwiftCC
 include("../QFCA/distributedQFCA.jl")
 using .DistributedQFCA
 
+include("../ConsistencyChecking/TheNaiveApproach.jl")
+using .TheNaiveApproach
+
 """
     quantomeReducer(model)
 
-The function is designed to perform metabolic network reduction by removing blocked reactions, merge all the fully coupled reactions,
-remove the eligible reactions by the DCE-induced reductions.It extracts relevant data, separates reversible and irreversible reactions,
+The function is designed to perform metabolic network compression by removing blocked reactions, merge all the fully coupled reactions,
+remove the eligible reactions by the DCE-induced compressions.It extracts relevant data, separates reversible and irreversible reactions,
 corrects reversibility, and removes zero rows from the stoichiometric matrix. It processes flux coupling analysis to identify reaction
-clusters and reactions to be removed. The function constructs a reduced metabolic network matrix and performs distributed optimization
-for DCE-induced reductions. Finally, it generates information about the reduction process and returns the reduced metabolic network matrix.
+clusters and reactions to be removed. The function constructs a compressed metabolic network matrix and performs distributed optimization
+for DCE-induced compressions. Finally, it generates information about the compression process and returns the compressed metabolic network matrix.
 
 # INPUTS
 
 - `model`:                     A CanonicalModel that has been built using COBREXA's `load_model` function.
-- `ReducedModelName`           Name of the metabolic network.
+- `CompressedModelName`        A string, name of the metabolic network.
 
 # OPTIONAL INPUTS
 
@@ -58,22 +61,22 @@ for DCE-induced reductions. Finally, it generates information about the reductio
 
 # OUTPUTS
 
-- `ReducedModelName`           Name of the reduced metabolic network.
-- `A`                          A `n` x `ñ` matrix representing the coefficients betwee reactions of original networks and reactions of reduced network.
+- `CompressedModelName`        Name of the compressed metabolic network.
+- `A`                          A `n` x `ñ` matrix representing the coefficients betwee reactions of original networks and reactions of compressed network.
 - `reduct-map`                 A dictionary to save the representatives of eliminations.
 
 # EXAMPLES
 
 - Full input/output example
 ```julia
-julia> ReducedModelName, A, reduction_map = quantomeReducer(model, ModelName)
+julia> CompressedModelName, A, compression_map = quantomeReducer(model, ModelName)
 ```
 
-See also: `dataOfModel()`, , `reversibility()`, `homogenization()`, `distributedReversibility_Correction()`, `distributedQFCA()`
+See also: `dataOfModel()`, `reversibility()`, `homogenization()`, `distributedReversibility_Correction()`, `distributedQFCA()`
 
 """
 
-function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePrecision::Bool=false, removing::Bool=false, representatives::Vector{Int64}=[], Tolerance::Float64=1e-6, printLevel::Int=1)
+function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePrecision::Bool=false, removing::Bool=false, Tolerance::Float64=1e-9, printLevel::Int=1)
 
     ## Extracte relevant data from input model
 
@@ -101,9 +104,12 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     ## Create a new instance of the input model with homogenous bounds
 
+    #blocked_index = find_blocked_reactions(model)
+
     ModelObject_CC = Model_CC(S, Metabolites, Reactions, Genes, m, n, lb, ub)
     model_CC_Constructor(ModelObject_CC , S, Metabolites, Reactions, Genes, row_S, col_S, lb, ub)
     blocked_index, ν  = swiftCC(ModelObject_CC, SolverName, false, Tolerance, printLevel)
+
     blocked_index_rev = blocked_index ∩ reversible_reactions_id
 
     # Convert to Vector{Int64}:
@@ -120,11 +126,11 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     end
 
     # Create a new Model_Correction object with the current data:
-    ModelObject_Crrection = Model_Correction(S, Metabolites, Reactions, Genes, m, n, lb, ub, irreversible_reactions_id, reversible_reactions_id)
+    ModelObject_Correction = Model_Correction(S, Metabolites, Reactions, Genes, m, n, lb, ub, irreversible_reactions_id, reversible_reactions_id)
     # Reconstruct the corrected model with updated parameters:
-    model_Correction_Constructor(ModelObject_Crrection , S, Metabolites, Reactions, Genes, row_S, col_S, lb, ub, irreversible_reactions_id, reversible_reactions_id)
+    model_Correction_Constructor(ModelObject_Correction , S, Metabolites, Reactions, Genes, row_S, col_S, lb, ub, irreversible_reactions_id, reversible_reactions_id)
     # Apply distributedReversibility_Correction() to the model and update Reversibility, S and bounds:
-    S, lb, ub, irreversible_reactions_id, reversible_reactions_id = distributedReversibility_Correction(ModelObject_Crrection, blocked_index_rev, SolverName, false)
+    S, lb, ub, irreversible_reactions_id, reversible_reactions_id = distributedReversibility_Correction(ModelObject_Correction, blocked_index_rev, SolverName, false)
 
     irreversible_reactions_id = sort(irreversible_reactions_id)
     reversible_reactions_id = sort(reversible_reactions_id)
@@ -158,11 +164,11 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     # Initialize arrays:
     A_rows_original = Array{Int64}([])
-    A_cols_reduced = Array{Int64}([])
+    A_cols_compressed = Array{Int64}([])
 
     # Make copies of Reaction_Ids for later use:
     A_rows_original = copy(Reaction_Ids)
-    A_cols_reduced = copy(Reaction_Ids)
+    A_cols_compressed = copy(Reaction_Ids)
 
     ## FC
 
@@ -332,14 +338,14 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     # Sort Eliminations:
     Eliminations = sort(Eliminations)
 
-    # Update 'A_cols_reduced' by removing elements in 'Eliminations' from the range 1 to 'n' in 'A_cols_reduced':
-    A_cols_reduced = A_cols_reduced[setdiff(range(1, n), Eliminations)]
+    # Update 'A_cols_compressed' by removing elements in 'Eliminations' from the range 1 to 'n' in 'A_cols_compressed':
+    A_cols_compressed = A_cols_compressed[setdiff(range(1, n), Eliminations)]
 
     ## Matrix A
 
-    # Create a shared array 'A' of size (A_rows_original, A_cols_reduced) with initial values set to false:
+    # Create a shared array 'A' of size (A_rows_original, A_cols_compressed) with initial values set to false:
     n = length(A_rows_original)
-    ñ = length(A_cols_reduced)
+    ñ = length(A_cols_compressed)
 
     A = SharedArray{Float64, 2}((n,ñ), init = false)
 
@@ -357,8 +363,8 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     # Iterate over indices from 1 to ñ:
     for i = 1:ñ
-        # Set the corresponding element to 1.0 in 'A' for each index in 'A_cols_reduced':
-        A[A_cols_reduced[i], i] = 1.0
+        # Set the corresponding element to 1.0 in 'A' for each index in 'A_cols_compressed':
+        A[A_cols_compressed[i], i] = 1.0
     end
 
     # Create FC_Final_coefficients
@@ -381,8 +387,8 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     for key ∈ sort(collect(keys(FC_Clusters_coefficients)))
         reaction_id, coupled_indices, coefficients = FC_Clusters_coefficients[key]
-        if reaction_id ∈ A_cols_reduced
-            col = findfirst(x -> x == reaction_id, A_cols_reduced)
+        if reaction_id ∈ A_cols_compressed
+            col = findfirst(x -> x == reaction_id, A_cols_compressed)
             for (row, coefficient) in zip(coupled_indices, coefficients)
                 A[row, col] = 1 / coefficient
             end
@@ -395,8 +401,12 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     counter = 1
 
     row, col = size(S)
-    S, Metabolites_reduced, Metabolites_elimination  = remove_zeroRows(S, Metabolites)
+    S, Metabolites_compressed, Metabolites_elimination  = remove_zeroRows(S, Metabolites)
     row, col = size(S)
+
+    optimal_Number = 0
+    infeasible_Number = 0
+    almostoptimal_Number = 0
 
     # Check if we're using octuple precision (very high precision floating-point numbers):
     if OctuplePrecision
@@ -438,9 +448,7 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     irreversible_reactions_id_noBlocked, reversible_reactions_id_noBlocked = reversibility(lb_noBlocked, Reaction_Ids_noBlocked, 0)
 
     for i in reversible_reactions_id_noBlocked
-        #println("$i in reversible_reactions_id_noBlocked")
         index = findfirst(x -> x == i, Reaction_Ids_noBlocked)
-        #println("$index in Reaction_Ids_noBlocked")
         # Constraint 3: Ensure that λ is 0 for reversible reactions (the reaction flux is zero for reversible reactions):
         con3 = @constraint(model_local, λ[index] == 0.0)
     end
@@ -491,21 +499,45 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
             # Check the optimization result
             status = termination_status(model_local)
 
+            # Check the optimization result
+            status = termination_status(model_local)
+            if status == MOI.OPTIMAL
+                optimal_Number += 1
+
+            elseif status == MOI.INFEASIBLE
+                infeasible_Number += 1
+
+            elseif status == MOI.ALMOST_OPTIMAL
+                almostoptimal_Number += 1
+
+            #elseif status == MOI.UNBOUNDED
+                #println("Model is unbounded.")
+            else
+                println("Optimization was stopped with status ", status)
+            end
+
             # Get the values of the λ variables after solving the optimization problem:
             λ_vec = value.(λ)
 
             # Create an empty array to store the indices of the non-zero λ values:
             cols = Array{Int64}([])
 
+            DCE_list = Array{Int64}([])
+
             # Loop through the λ vector and check for values above the defined tolerance:
             for i = 1:length(λ_vec)
-                if λ_vec[i] > Tolerance
-                    # Find the column index of the corresponding reaction in A_cols_reduced:
+                if λ_vec[i] > 1e-6
+                    # Find the column index of the corresponding reaction in A_cols_compressed:
                     index = Reaction_Ids_noBlocked[i]
-                    index_final = findfirst(x -> x == index, A_cols_reduced)
+                    append!(DCE_list, index)
+                    index_final = findfirst(x -> x == index, A_cols_compressed)
                     # Update the corresponding value in matrix A for the current row:
                     # Assign your value
-                    if status == MOI.OPTIMAL
+                    if (status == MOI.OPTIMAL)
+                        A[row, index_final] = λ_vec[i]
+                    end
+
+                    if (status == MOI.ALMOST_OPTIMAL)
                         A[row, index_final] = λ_vec[i]
                     end
                 end
@@ -539,9 +571,7 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     for key ∈ sort(collect(keys(FC_Clusters_coefficients)))
         if FC_Clusters_coefficients[key][1] in remove_list_DC
             for (row, coefficient) in zip(FC_Clusters_coefficients[key][2], FC_Clusters_coefficients[key][3])
-                if coefficient != 1.0
-                    A[row, :] = (1 / coefficient) .* A[FC_Clusters_coefficients[key][1], :]
-                end
+                A[row, :] = (1 / coefficient) .* A[FC_Clusters_coefficients[key][1], :]
             end
         end
     end
@@ -552,28 +582,34 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     # Get the number of rows and columns in the stoichiometric matrix S:
     row_S, col_S = size(S)
 
+    A_sparse = sparse(Array(A))
+    dropzeros!(A_sparse)
+
     # Compute the modified stoichiometric matrix S̃ by multiplying S with A:
     S̃ = S * A
 
-    # Remove any zero rows from the matrix S̃ and get the reduced metabolite list:
-    S̃, Metabolites_reduced, Metabolites_elimination = remove_zeroRows(S̃, Metabolites)
+    S̃ = sparse(Array(S̃))
+    dropzeros!(S̃)
 
-    # Get the dimensions of the reduced stoichiometric matrix S̃:
+    # Remove any zero rows from the matrix S̃ and get the compressed metabolite list:
+    S̃, Metabolites_compressed, Metabolites_elimination = remove_zeroRows(S̃, Metabolites)
+
+    # Get the dimensions of the compressed stoichiometric matrix S̃:
     row_S̃, col_S̃ = size(S̃)
 
-    # Identify the reactions that have been eliminated (not part of A_cols_reduced):
-    Reactions_elimination = Reactions[setdiff(range(1, n), A_cols_reduced)]
+    # Identify the reactions that have been eliminated (not part of A_cols_compressed):
+    Reactions_elimination = Reactions[setdiff(range(1, n), A_cols_compressed)]
 
-    # Get the reduced list of reactions corresponding to the columns in A_cols_reduced:
-    R̃ = Reactions[A_cols_reduced]
+    # Get the compressed list of reactions corresponding to the columns in A_cols_compressed:
+    R̃ = Reactions[A_cols_compressed]
 
-    # Make a copy of the reduced metabolites to M̃:
-    M̃ = copy(Metabolites_reduced)
+    # Make a copy of the compressed metabolites to M̃:
+    M̃ = copy(Metabolites_compressed)
 
-    ## Reduction Map
+    ## Compression Map
 
-    # Creating an empty dictionary called reduction_map:
-    reduction_map = Dict()
+    # Creating an empty dictionary called compression_map:
+    compression_map = Dict()
 
     # Initializing the counter c to 1:
     c = 1
@@ -585,8 +621,8 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
         # Finding the non-zero indices and values in the sparse vector:
         nonzero_indices, nonzero_values = findnz(col)
         index = findfirst(x -> x == R̃[c], Reactions)
-        # Assigning the tuple (R̃[c], nonzero_indices) to the key c in reduction_map:
-        reduction_map[c] = index, nonzero_indices
+        # Assigning the tuple (R̃[c], nonzero_indices) to the key c in compression_map:
+        compression_map[c] = index, nonzero_indices
         # Incrementing the counter c by 1:
         c += 1
     end
@@ -620,7 +656,7 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     # Iterate through each reaction to update the stoichiometry based on the modified matrix:
     for i ∈ model.reactions
-        # Find the index of the current reaction in the reduced reaction list R̃:
+        # Find the index of the current reaction in the compressed reaction list R̃:
         index_col = findfirst(x -> x == i.first, R̃)
 
         # Get the corresponding column in the modified stoichiometric matrix S̃:
@@ -639,11 +675,11 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
 
     ## Update Biomass
 
-    # Iterate through the reduction map to check and update the Biomass reaction:
-    for (key, value) ∈ sort(reduction_map)
-        # If the biomass reaction (index_c) is in the reduction map, update its index:
-        if index_c ∈ reduction_map[key][2]
-            index_c = reduction_map[key][1]
+    # Iterate through the compression map to check and update the Biomass reaction:
+    for (key, value) ∈ sort(compression_map)
+        # If the biomass reaction (index_c) is in the compression map, update its index:
+        if index_c ∈ compression_map[key][2]
+            index_c = compression_map[key][1]
             Biomass = Reactions[index_c]
         end
     end
@@ -658,19 +694,21 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
         end
     end
 
-    S_reduced, Metabolites_reduced, Reactions_reduced, Genes_reduced, m_reduced, n_reduced, n_genes_reduced, lb_reduced, ub_reduced, c_vector_reduced = dataOfModel(model, 0)
+    S_compressed, Metabolites_compressed, Reactions_compressed, Genes_compressed, m_compressed, n_compressed, n_genes_compressed, lb_compressed, ub_compressed, c_vector_compressed = dataOfModel(model, 0)
+
+    dropzeros!(S_compressed)
 
     for i ∈ model.reactions
-        index_Reactions_reduced = findfirst(x -> x == i.first, Reactions_reduced)
-        i.second.objective_coefficient = c_vector_reduced[index_Reactions_reduced]
+        index_Reactions_compressed = findfirst(x -> x == i.first, Reactions_compressed)
+        i.second.objective_coefficient = c_vector_compressed[index_Reactions_compressed]
     end
 
-    ReducedModelName = ModelName * "_reduced"
-    model_reduced_json = convert(JSONFBCModel, model)
-    save_model(model_reduced_json, "../src/QuantomeRedNet/ReducedNetworks/$ReducedModelName.json")
+    CompressedModelName = ModelName * "_compressed"
+    model_compressed_json = convert(JSONFBCModel, model)
+    save_model(model_compressed_json, "../src/QuantomeRedNet/CompressionResults/$CompressedModelName.json")
 
     # Read the JSON file
-    data = JSON.parsefile("../src/QuantomeRedNet/ReducedNetworks/$ReducedModelName.json")
+    data = JSON.parsefile("../src/QuantomeRedNet/CompressionResults/$CompressedModelName.json")
 
     # Process reactions
     if haskey(data, "reactions")
@@ -690,17 +728,20 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
     end
 
     # Write the corrected JSON file
-    open("../src/QuantomeRedNet/ReducedNetworks/$ReducedModelName.json", "w") do file
+    open("../src/QuantomeRedNet/CompressionResults/$CompressedModelName.json", "w") do file
         JSON.print(file, data, 1)  # Use 'indent=1' for indentation
     end
 
+    A_sparse = sparse(Array(A))
+    dropzeros!(A_sparse)
+
     # Save matrix to a file
-    @save "../src/QuantomeRedNet/ReducedNetworks/A_$ReducedModelName.jld2" A
+    @save "../src/QuantomeRedNet/CompressionResults/A_$CompressedModelName.jld2" A_sparse
 
     ## Print out results if requested
 
     if printLevel > 0
-        printstyled("Metabolic Network Reductions:\n"; color=:cyan)
+        printstyled("Metabolic Network compressions:\n"; color=:cyan)
         if OctuplePrecision
             printstyled("Solver = Clarabel \n"; color=:green)
         else
@@ -712,14 +753,14 @@ function quantomeReducer(model, ModelName, SolverName::String="HiGHS", OctuplePr
         println("Genes       : $(length(Genes))")
         println("Metabolites : $(m)")
         println("Reactions   : $(n)")
-        println("Reduced Network:")
+        println("compressed Network:")
         println("S           : $(row_S̃) x $(col_S̃)")
-        println("Genes       : $(length(Genes_reduced))")
-        println("Metabolites : $(length(Metabolites_reduced))")
+        println("Genes       : $(length(Genes_compressed))")
+        println("Metabolites : $(length(Metabolites_compressed))")
         println("Reactions   : $(length(R̃))")
         println("A matrix    : $(row_A) x $(col_A)")
     end
-    return ReducedModelName, A, reduction_map
+    return CompressedModelName, A, compression_map
 end
 
 end

@@ -9,7 +9,7 @@
    "notes": {},
    "gene_reaction_rule": "(G1)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 1.0
   }
  ],

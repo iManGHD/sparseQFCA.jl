@@ -6,7 +6,7 @@ import JSONFBCModels: JSONFBCModel
 
 import AbstractFBCModels as A
 
-export myModel_e_coli_core, myModel_iIS312, fctable_FFCA_e_coli_core, fctable_FFCA_iIS312,blockedTest_e_coli_core,
+export myModel_e_coli_core, myModel_iIS312, myModel_iML1515, fctable_FFCA_e_coli_core, fctable_FFCA_iIS312,blockedTest_e_coli_core,
        blockedTest_iIS312, QFCATest_iIS312, distributedQFCATest_e_coli_core, distributedQFCATest_iIS312, FBATest
 
 using COBREXA, DelimitedFiles, SparseArrays
@@ -15,6 +15,7 @@ using COBREXA, DelimitedFiles, SparseArrays
 
 myModel_e_coli_core = load_model(JSONFBCModel, "Models/e_coli_core.json", A.CanonicalModel.Model)
 myModel_iIS312 = load_model(JSONFBCModel, "Models/iIS312.json", A.CanonicalModel.Model)
+myModel_iML1515 = load_model(JSONFBCModel, "Models/iML1515.json", A.CanonicalModel.Model)
 
 ## read the CSV file into a matrix of type String
 

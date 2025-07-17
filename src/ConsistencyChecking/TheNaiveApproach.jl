@@ -1,6 +1,6 @@
 #-----------------------------------------------------------------------------------------------------------------------------------------------------
 #=
-    Purpose:    Identifying Blocked Reactions in a Metabolic Model using Convex Optimization(n_i + 2n_r LP)
+    Purpose:    Identifying Blocked Reactions in a Metabolic Model using Convex Optimization(n_i + 2n_r LP).
     Author:     Iman Ghadimi, Mojtaba Tefagh - Sharif University of Technology
     Date:       April 2022
 =#
@@ -60,7 +60,7 @@ See also: `dataOfModel()`, `reversibility()`, `getM()`
 
 """
 
-function find_blocked_reactions(model, SolverName::String="HiGHS", Tolerance::Float64=1e-6, OctuplePrecision::Bool=false, printLevel::Int=1)
+function find_blocked_reactions(model, SolverName::String="HiGHS", Tolerance::Float64=1e-9, OctuplePrecision::Bool=false, printLevel::Int=1)
 
     ## Export data from model
 
@@ -79,10 +79,10 @@ function find_blocked_reactions(model, SolverName::String="HiGHS", Tolerance::Fl
     printstyled("Homogenization:\n"; color=:cyan)
 
     # Set the maximum value for M:
-    M = getM()
+    M = 1000.0
 
     ## Loop through each value in the array "lb" and "ub"
-
+#=
     for i = 1:n
         # If the lower bound is greater than zero, set it to zero:
         if lb[i] > 0
@@ -101,7 +101,7 @@ function find_blocked_reactions(model, SolverName::String="HiGHS", Tolerance::Fl
             ub[i] = 0
         end
     end
-
+=#
     ## Find Irreversible blocked reactions
 
     # Create empty arrays to hold the IDs of blocked and unblocked irreversible reactions:

@@ -1,6 +1,6 @@
 #-----------------------------------------------------------------------------------------------------------------------------------------------------
 #=
-    Purpose:    A Toolkit of Functions for Preprocessing Metabolic Network Data
+    Purpose:    A Toolkit of Functions for Preprocessing Metabolic Network Data.
     Authors:    Iman Ghadimi, Mojtaba Tefagh - Sharif University of Technology
     Date:       April 2022
 =#

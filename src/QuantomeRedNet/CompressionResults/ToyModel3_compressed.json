@@ -14,27 +14,27 @@
   {
    "name": "rxn3",
    "metabolites": {
-    "m2": -1.0000000000287557e-6
+    "m2": -9.999999717180685e-10
    },
    "lower_bound": 0.0,
    "id": "R3",
    "notes": {},
    "gene_reaction_rule": "(G3)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 0.0
   },
   {
    "name": "rxn4",
    "metabolites": {
-    "m2": -1.0000000000287557e-6
+    "m2": -9.999999717180685e-10
    },
    "lower_bound": 0.0,
    "id": "R4",
    "notes": {},
    "gene_reaction_rule": "(G4)",
    "annotation": {},
-   "upper_bound": 1000.0,
+   "upper_bound": 1.0e6,
    "objective_coefficient": 1.0
   }
  ],

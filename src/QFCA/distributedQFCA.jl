@@ -1,6 +1,6 @@
 #-----------------------------------------------------------------------------------------------------------------------------------------------------
 #=
-    Purpose:    Parallel computation of quantitative flux coupling using swiftCC algorithm and Gaussian Elimination
+    Purpose:    Parallel computation of quantitative flux coupling using swiftCC algorithm and Gaussian Elimination.
     Author:     Iman Ghadimi, Mojtaba Tefagh - Sharif University of Technology
     Date:       October 2022
 =#
@@ -135,7 +135,7 @@ See also: `dataOfModel()`, `reversibility()`, `homogenization()`, `Model_QFCA`, 
 
 """
 
-function distributedQFCA(ModelObject_QFCA::Model_QFCA, blocked_index::Vector{Int64}, SolverName::String="HiGHS", OctuplePrecision::Bool=false, removing::Bool=false, Tolerance::Float64=1e-6, printLevel::Int=1)
+function distributedQFCA(ModelObject_QFCA::Model_QFCA, blocked_index::Vector{Int64}, SolverName::String="HiGHS", OctuplePrecision::Bool=false, removing::Bool=false, Tolerance::Float64=1e-9, printLevel::Int=1)
 
     ## Extract relevant information from the ModelObject_QFCA
 
@@ -435,61 +435,42 @@ function distributedQFCA(ModelObject_QFCA::Model_QFCA, blocked_index::Vector{Int
         end
     end
 =#
-    ## Solve an LU decomposition for each pair of partially coupled nodes to determine fully coupling
+    # Uncomment if you're using Pardiso
+    # ps = PardisoSolver()
 
-    # Start a distributed loop over keys in PC, sorted in ascending order:
-    @sync @distributed for key ∈ sort(collect(keys(PC)))
+    option = 1  # 1: LU (\), 2: Pseudoinverse (pinv), 3: Pardiso
 
-        ## Check if the value of fctable at the location given by the key in PC is not equal to 1.0
+    @sync @distributed for key in sort(collect(keys(PC)))
 
-        if fctable[PC[key][1],PC[key][2]] != 1.0
-
-            # Transpose S_noBlocked:
+        if fctable[PC[key][1], PC[key][2]] != 1.0
             S_noBlocked_transpose = S_noBlocked'
 
-            # Initialize CO as a zeros vector with length equal to col_noBlocked:
             CO = zeros(col_noBlocked)
-
-            # Set the value of CO at the index given by the first element of the value of key in PC to -1:
             CO[PC[key][1]] = -1
 
-            # Remove the row given by the second element of the value of key in PC from S_noBlocked_transpose:
             S_noBlocked_transpose_removedC = S_noBlocked_transpose[1:end .!= PC[key][2], :]
-
-            # Remove the element at the index given by the second element of the value of key in PC from CO:
             CO = CO[setdiff(1:end, PC[key][2])]
 
-            ## Use Gaussian elimination to solve for X in the equation S_noBlocked_transpose_removedC * X = CO
-
+            # Solve the linear system using selected option:
             X = S_noBlocked_transpose_removedC \ CO
 
-            ## Calculate the solution Sol by subtracting CO from S_noBlocked_transpose_removedC * X
+            Sol = (S_noBlocked_transpose_removedC * X) - CO
 
-            Sol = (S_noBlocked_transpose_removedC*X) - (CO)
+            if isapprox(norm(Sol), 0.0, atol=Tolerance)
 
-            ## Check if the solution vector "Sol" is close to the zero vector with a tolerance of "Tolerance"
-
-            if isapprox(norm(Sol), 0.0, atol = Tolerance)
-
-                # Edit fctable and change partially Coupling to Fully Coupling:
-                fctable[PC[key][1],PC[key][2]] = 1.0
-                fctable[PC[key][2],PC[key][1]] = 1.0
-
-                # Cast SparseVector{Float64, Int64} to SparseMatrixCSC{Float64, Int64}:
                 rowC_S_noBlocked_transpose = sparsevec(S_noBlocked_transpose[PC[key][2], :])
                 matrix_rowC_S_noBlocked_transpose = sparse(rowC_S_noBlocked_transpose)
                 sparseMatrix_rowC = SparseMatrixCSC(matrix_rowC_S_noBlocked_transpose)
 
-                # Calculate coefficient:
                 C = sparseMatrix_rowC' * X
 
-                ## Set coefficient for i,j
+                if !isapprox(C[1], 0.0; atol=Tolerance)
+                    Fc_Coefficients[PC[key][1], PC[key][2]] = C[1]
+                    Fc_Coefficients[PC[key][2], PC[key][1]] = 1 / C[1]
 
-                # V_i = C * V_j:
-                Fc_Coefficients[PC[key][1],PC[key][2]] = C[1]
-
-                # V_j = 1/C * V_i:
-                Fc_Coefficients[PC[key][2],PC[key][1]] = 1 / C[1]
+                    fctable[PC[key][1], PC[key][2]] = 1.0
+                    fctable[PC[key][2], PC[key][1]] = 1.0
+                end
             end
         end
     end
