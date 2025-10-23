@@ -793,94 +793,6 @@ end
 
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
-#=
-### distributedFBA
-
-using COBRA
-
-#workersPool, nWorkers = createPool(8, false)
-
-model = loadModel("Models/e_coli_core.mat", "e_coli_core")
-
-result_distributedFBA, time_taken_distributedFBA, bytes_alloc_distributedFBA, gctime_distributedFBA = @timed begin
-## set the reaction list
-
-rxnsList = 1:n_e_coli_core
-
-## select the reaction optimization mode
-##  0: only minimization
-##  1: only maximization
-##  2: maximization and minimization
-
-rxnsOptMode = 1
-
-## specify the solver name
-
-solverName = :GLPK
-
-# set solver parameters
-    solParams = [
-        # decides whether or not results are displayed on screen in an application of the C API.
-        (:CPX_PARAM_SCRIND,         0);
-
-        # sets the parallel optimization mode. Possible modes are automatic, deterministic, and opportunistic.
-        (:CPX_PARAM_PARALLELMODE,   1);
-
-        # sets the default maximal number of parallel threads that will be invoked by any CPLEX parallel optimizer.
-        (:CPX_PARAM_THREADS,        1);
-
-        # partitions the number of threads for CPLEX to use for auxiliary tasks while it solves the root node of a problem.
-        (:CPX_PARAM_AUXROOTTHREADS, 2);
-
-        # decides how to scale the problem matrix.
-        (:CPX_PARAM_SCAIND,         -1);
-
-        # controls which algorithm CPLEX uses to solve continuous models (LPs).
-        (:CPX_PARAM_LPMETHOD,       0)
-    ] #end of solParams
-
-## change the COBRA solver
-
-solver = changeCobraSolver(solverName, solParams)
-
-# preFBA
-
-optSol, fbaSol = preFBA!(model, solver)
-
-# spliteRange
-
-splitRange(model, rxnsList, 4, 1)
-
-# loopFBA
-
-m, x, c = buildCobraLP(model, solver)
-
-retObj, retFlux, retStat = loopFBA(m, x, c, rxnsList, n_e_coli_core)
-
-minFlux, maxFlux = distributedFBA(model, solver)
-
-end
-=#
-# Print a separator:
-#printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
-
-## COBREXA
-#=
-import JSONFBCModels
-import HiGHS
-
-model = load_model("Models/e_coli_core.json")
-
-result, time_taken_COBREXA, bytes_alloc_COBREXA, gctime_COBREXA = @timed begin
-
-solution = flux_balance_analysis(model, optimizer = HiGHS.Optimizer)
-println("COBREXA FBA:")
-println("Biomass Flux = $(solution.objective)")
-
-end
-=#
-# Print a separator:
-#printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 println("FBA:")
 println("Time: ", time_taken_original, " seconds")
@@ -897,17 +809,6 @@ println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
 
-#=
-println("distrubtedFBA:")
-println("Time: ", time_taken_distributedFBA, " seconds")
-println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
-println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
-
-println("COBREXA FBA:")
-println("Time: ", time_taken_COBREXA, " seconds")
-println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
-println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
-=#
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
@@ -947,17 +848,45 @@ println("compressedFBA:")
 println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
-#=
-println("distrubtedFBA:")
-println("Time: ", time_taken_distributedFBA, " seconds")
-println("Memory Allocations: ", bytes_alloc_distributedFBA / (1024^2), " MB")
-println("Garbage Collection Time: ", gctime_distributedFBA, " seconds")
 
-println("COBREXA FBA:")
-println("Time: ", time_taken_COBREXA, " seconds")
-println("Memory Allocations: ", bytes_alloc_COBREXA / (1024^2), " MB")
-println("Garbage Collection Time: ", gctime_COBREXA, " seconds")
-=#
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+###############################
+
+## iML1515
+
+modelName = "iML1515"
+myModel_iML15152 = load_model(JSONFBCModel, "Models/iML1515.json", A.CanonicalModel.Model)
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(myModel_iML15152, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_iML15152, modelName)
+
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## Load Compressed Model
+
+myModel_iML15152_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/iML1515_compressed.json", A.CanonicalModel.Model)
+
+## Load A Matrix
+
+jld_file = jldopen("../src/QuantomeRedNet/CompressionResults/A_iML1515_compressed.jld2", "r")
+    A_matrix = jld_file["A"]
+close(jld_file)
+
+result_compress, time_taken_compress, bytes_alloc_compress, gctime_compress = @timed begin
+
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(myModel_iML15152, myModel_iML15152_compressed, A_matrix, modelName)
+
+end
+
+println("compressedFBA:")
+println("Time: ", time_taken_compress, " seconds")
+println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_compress, " seconds")
+
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
