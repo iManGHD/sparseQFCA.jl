@@ -32,7 +32,7 @@ printstyled("#------------------------------------------------------------------
 
 ### sparseQFCA:
 
-# Print a message indicating that sparseQFCA is being run on e_coli_core:
+# Print a message indicating that sparseQFCA is being run on iML1515:
 printstyled("sparseQFCA :\n"; color=:magenta)
 printstyled("iIS312 :\n"; color=:yellow)
 
@@ -853,6 +853,83 @@ println("Garbage Collection Time: ", gctime_compress, " seconds")
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
 ###############################
+
+### Metabolic Network Compression
+
+printstyled("Metabolic Network Compression:\n"; color=:magenta)
+
+modelName = "iML1515"
+
+# Extract relevant data from input model:
+
+S_iML1515, Metabolites_iML1515, Reactions_iML1515, Genes_iML1515, m_iML1515, n_iML1515, n_genes_iML1515, lb_iML1515, ub_iML1515, c_vector_iML1515 = sparseQFCA.dataOfModel(myModel_iML1515)
+
+## FBA
+
+result_original, time_taken_original, bytes_alloc_original, gctime_original = @timed begin
+
+V_initial, Original_ObjectiveValue = sparseQFCA.FBA(myModel_iML1515, modelName)
+
+end
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## Corrected FBA
+
+result_corrected, time_taken_corrected, bytes_alloc_corrected, gctime_corrected = @timed begin
+
+V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_iML1515, modelName)
+
+end
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
+
+## QuantomeRedNet
+
+printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
+
+compressedModelName, A_matrix, compression_map = sparseQFCA.quantomeReducer(myModel_iML1515, ModelName, "HiGHS", true, false)
+
+iML1515_compressed = load_model(JSONFBCModel, "../src/QuantomeRedNet/CompressionResults/$compressedModelName.json", A.CanonicalModel.Model)
+
+S_iML1515_compressed, Metabolites_iML1515_compressed, Reactions_iML1515_compressed, Genes_iML1515_compressed, m_iML1515_compressed, n_iML1515_compressed, n_genes_iML1515_compressed, lb_iML1515_compressed, ub_iML1515_compressed, c_vector_iML1515_compressed = sparseQFCA.dataOfModel(iML1515_compressed, 0)
+
+iML1515 = load_model(JSONFBCModel, "Models/iML1515.json", A.CanonicalModel.Model)
+
+result_compress, time_taken_compress, bytes_alloc_compress, gctime_compress = @timed begin
+
+V, V_compressed, Compressed_ObjectiveValue = sparseQFCA.compressedFBA(iML1515, iML1515_compressed, A_matrix, modelName)
+
+end
+
+@test FBATest(Original_ObjectiveValue, Corrected_ObjectiveValue, Compressed_ObjectiveValue)
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
+
+println("FBA:")
+println("Time: ", time_taken_original, " seconds")
+println("Memory Allocations: ", bytes_alloc_original / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_original, " seconds")
+
+println("correctedFBA:")
+println("Time: ", time_taken_corrected, " seconds")
+println("Memory Allocations: ", bytes_alloc_corrected / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_corrected, " seconds")
+
+println("compressedFBA:")
+println("Time: ", time_taken_compress, " seconds")
+println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_compress, " seconds")
+
+# Print a separator:
+printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
+
+### Compressed Flux Balance Analysis
+
+printstyled("Compressed Flux Balance Analysis by using CompressedModel:\n"; color=:magenta)
 
 ## iML1515
 
