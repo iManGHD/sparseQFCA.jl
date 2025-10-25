@@ -7,7 +7,7 @@ using Distributed
 
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
 
-addprocs(7)
+#addprocs(7)
 println("Number of Proccess : $(nprocs())")
 println("Number of Workers  : $(nworkers())")
 
@@ -29,7 +29,7 @@ import AbstractFBCModels.CanonicalModel: Reaction, Metabolite, Gene, Coupling
 import JSONFBCModels: JSONFBCModel
 
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
-
+#=
 ### sparseQFCA:
 
 # Print a message indicating that sparseQFCA is being run on iML1515:
@@ -206,7 +206,7 @@ fctable_distributedQFCA_iIS312 = convert(Matrix{Int}, fctable_distributedQFCA_iI
 @test distributedQFCATest_iIS312(fctable_distributedQFCA_iIS312)
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:magenta)
-
+=#
 ### ToyModels
 
 printstyled("ToyModels:\n"; color=:magenta)
@@ -883,9 +883,20 @@ V_correction, Corrected_ObjectiveValue = sparseQFCA.correctedFBA(myModel_iML1515
 
 end
 
+println("FBA:")
+println("Time: ", time_taken_original, " seconds")
+println("Memory Allocations: ", bytes_alloc_original / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_original, " seconds")
+
+println("correctedFBA:")
+println("Time: ", time_taken_corrected, " seconds")
+println("Memory Allocations: ", bytes_alloc_corrected / (1024^2), " MB")
+println("Garbage Collection Time: ", gctime_corrected, " seconds")
+
+
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:yellow)
-
+#=
 ## QuantomeRedNet
 
 printstyled("QuantomeRedNet - $modelName :\n"; color=:yellow)
@@ -963,7 +974,7 @@ println("compressedFBA:")
 println("Time: ", time_taken_compress, " seconds")
 println("Memory Allocations: ", bytes_alloc_compress / (1024^2), " MB")
 println("Garbage Collection Time: ", gctime_compress, " seconds")
-
+=#
 # Print a separator:
 printstyled("#-------------------------------------------------------------------------------------------#\n"; color=:red)
 
