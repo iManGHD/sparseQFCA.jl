@@ -225,7 +225,7 @@ function swiftCC(ModelObject_CC::Model_CC, SolverName::String="HiGHS", OctuplePr
 
     # Iterate over the irreversible reactions and check if the corresponding u variable is close to 0, If it is, the reaction is considered blocked and its ID is added to the list:
     for i = 1:n_irr
-        if value(u[i]) <= 0.5
+        if value(u[i]) <= 0.2
         #if isapprox(value(u[i]), 0.0, atol = Tolerance)
             append!(irr_blocked_reactions, irreversible_reactions_id[i])
         end
